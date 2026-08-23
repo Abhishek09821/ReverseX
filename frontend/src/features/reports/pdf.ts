@@ -168,10 +168,32 @@ function renderCover(output: Writer, result: AnalysisResult): void {
   keyValue(output, 'Duration', formatDuration(result.scan.duration_ms));
   keyValue(output, 'Engine', result.scan.engine_version);
   keyValue(output, 'Schema', result.schema_version);
+  keyValue(output, 'Collection mode', result.scan.run_context?.collection_mode ?? 'unknown');
+
+  // Evidence Quality Gate
+  if (result.quality) {
+    heading(output, 'Evidence Quality', 2);
+    keyValue(output, 'Overall quality', result.quality.overall.toUpperCase());
+    keyValue(output, 'Overall score', `${result.quality.overall_score}/100`);
+    const sections = result.quality.sections;
+    for (const key of SECTION_KEYS) {
+      const sq = sections[key];
+      if (sq) {
+        keyValue(output, `  ${sectionLabel(key)}`, `${sq.quality.toUpperCase()} (${sq.score}/100) — ${sq.analyzers_completed}/${sq.analyzers_total} analyzers`);
+      }
+    }
+    if (result.quality.ai_fallback_available) {
+      text(output, `AI intelligence recommended for: ${result.quality.ai_fallback_sections.join(', ') || 'none'}`, true);
+    }
+    keyValue(output, 'Analysis mode', result.quality.ai_fallback_available ? 'Normal + AI available' : 'Normal evidence only');
+  }
 
   heading(output, 'Report summary', 2);
   if (overview.technology.items.length > 0) {
     bullet(output, `Technology: ${overview.technology.items.map((item) => item.name).join(', ')}`);
+    if (overview.technology.rendering) {
+      text(output, `  Rendering: ${overview.technology.rendering.value} (${findingStatusLabel(overview.technology.rendering.status)})`, true, 3);
+    }
   } else {
     bullet(output, 'Technology: no product was positively identified from observable signals.', true);
   }
@@ -191,12 +213,20 @@ function renderCover(output: Writer, result: AnalysisResult): void {
     output,
     `Evidence: ${overview.evidence.verified} verified, ${overview.evidence.stronglyInferred} strongly inferred, ${overview.evidence.inferred} inferred, ${overview.evidence.aiInferred} AI hypotheses.`,
   );
+
+  // Design summary
+  if (overview.design.fonts.length > 0 || overview.design.observations.length > 0) {
+    bullet(output, `Design: ${[...overview.design.fonts.slice(0, 3), ...overview.design.observations].join(', ')}`);
+  }
 }
 
 function renderDesign(output: Writer, result: AnalysisResult): void {
   sectionHeader(output, result, 'design');
   const design = buildDesignPresentation(result);
+
+  renderSectionQuality(output, result, 'design');
   text(output, design.summary);
+  output.y += 2;
 
   heading(output, 'Page structure', 2);
   renderFindings(output, result.sections.design.findings.filter((finding) => ['document', 'structure'].includes(finding.category)));
@@ -238,6 +268,9 @@ function renderDesign(output: Writer, result: AnalysisResult): void {
   keyValue(output, 'Animations', design.motion.animations.join(', '));
   keyValue(output, 'Keyframe definitions', design.motion.keyframeCount);
 
+  // AI Findings
+  renderAiFindings(output, result.sections.design.findings);
+
   renderLimitations(output, result.sections.design.meta.limitations);
 }
 
@@ -245,20 +278,23 @@ function renderTechnology(output: Writer, result: AnalysisResult): void {
   sectionHeader(output, result, 'technology');
   const presentation = buildTechPresentation(result);
 
+  // Evidence quality for this section
+  renderSectionQuality(output, result, 'technology');
+
   if (presentation.categories.length === 0) {
     text(output, 'No technology was positively identified from observable signals. Invisible backend or bundled technology was not guessed.', true);
   }
   for (const category of presentation.categories) {
     heading(output, category.title, 2);
     for (const item of category.items) {
-      ensurePage(output, 16);
+      ensurePage(output, 18);
       output.doc.setFont('helvetica', 'bold');
       output.doc.setFontSize(10);
       output.doc.setTextColor(...DARK);
       output.doc.text(item.name, MARGIN, output.y);
       statusBadge(output, item.status, Math.min(MARGIN + output.doc.getTextWidth(item.name) + 4, 160), output.y);
       output.y += 5;
-      text(output, item.description, true);
+      if (item.description) text(output, item.description, true);
       if (item.signals.length > 0) text(output, `Evidence: ${item.signals.join(' ')}`, true);
       if (item.limitations.length > 0) text(output, `Limitations: ${item.limitations.join(' ')}`, true);
       output.y += 2;
@@ -274,16 +310,30 @@ function renderTechnology(output: Writer, result: AnalysisResult): void {
     statusBadge(output, 'ai_inferred', MARGIN, output.y);
     output.y += 6;
     text(output, 'AI hypothesis — not a verified detection.', true);
-    if (hypothesis.reasoning) text(output, `Why inferred: ${hypothesis.reasoning}`);
-    for (const basis of hypothesis.basis) bullet(output, `Basis: ${basis.label}`, true);
+    if (hypothesis.reasoning) {
+      text(output, `Reasoning: ${hypothesis.reasoning}`);
+    }
+    if (hypothesis.basis.length > 0) {
+      text(output, 'Evidence basis:', true);
+      for (const basis of hypothesis.basis) bullet(output, basis.url ? `${basis.label} (${basis.url})` : basis.label, true);
+    }
     for (const limitation of hypothesis.limitations) bullet(output, `Limitation: ${limitation}`, true);
+    output.y += 3;
   }
 
   heading(output, 'Unknown / not publicly determinable', 2);
-  if (presentation.unknowns.length === 0) text(output, 'No explicit unknowns were reported.', true);
-  for (const unknown of presentation.unknowns) {
-    bullet(output, `${unknown.name} — ${findingStatusLabel(unknown.status)}: ${unknown.reason}`);
+  if (presentation.unknowns.length === 0) {
+    text(output, 'No explicit unknowns were reported.', true);
+  } else {
+    text(output, 'These properties cannot be determined from public observation:', true);
+    for (const unknown of presentation.unknowns) {
+      bullet(output, `${unknown.name} — ${findingStatusLabel(unknown.status)}: ${unknown.reason}`);
+      if (unknown.limitations.length > 0) text(output, `  ${unknown.limitations.join('; ')}`, true, 5);
+    }
   }
+
+  // AI Findings
+  renderAiFindings(output, result.sections.technology.findings);
 
   renderLimitations(output, result.sections.technology.meta.limitations);
 }
@@ -294,26 +344,34 @@ function renderSecurity(output: Writer, result: AnalysisResult): void {
   const parsed = securityPayloadSchema.safeParse(section.data);
   const score = parsed.success ? parsed.data.score : null;
 
+  renderSectionQuality(output, result, 'security');
+
   heading(output, 'Observable Security Posture', 2);
   if (score) {
     keyValue(output, 'Score', `${score.percentage}%`);
     keyValue(output, 'Band', score.band_phrase);
     keyValue(output, 'Applicable points', `${score.points_awarded} / ${score.points_applicable}`);
     keyValue(output, 'Methodology', score.methodology_version);
+    output.y += 2;
     text(output, score.disclaimer, true);
     text(output, 'This passive score is not proof that the website is secure.', true);
 
     heading(output, 'Security rules', 2);
     for (const rule of score.rules) {
+      ensurePage(output, 10);
       bullet(output, `${rule.id} ${rule.title} — ${rule.outcome}: ${rule.rationale}`);
-      if (rule.recommendation) text(output, `Recommendation: ${rule.recommendation}`, true, 5);
+      if (rule.recommendation) text(output, `  Recommendation: ${rule.recommendation}`, true, 5);
     }
   } else {
     text(output, 'No posture score was produced; findings remain available below.', true);
   }
 
   heading(output, 'Passive observations', 2);
-  renderFindings(output, section.findings);
+  renderFindings(output, section.findings.filter((f) => f.status !== 'ai_inferred'));
+
+  // AI Findings
+  renderAiFindings(output, section.findings);
+
   renderLimitations(output, section.meta.limitations);
 }
 
@@ -330,18 +388,70 @@ function renderTraffic(output: Writer, result: AnalysisResult): void {
       (finding.value !== null || finding.values.length > 0),
   );
 
+  renderSectionQuality(output, result, 'traffic');
+
   heading(output, 'Popularity and traffic estimates', 2);
   keyValue(output, 'Provider', provider?.provider_name ?? 'none configured');
   keyValue(output, 'Provider available', provider?.provider_available ? 'yes' : 'no');
   if (!hasEstimate) {
     text(output, 'Traffic estimates are unavailable. No visit count, rank, or popularity band was fabricated.', true);
+    text(output, 'WebLens requires a credible external data source (e.g. Tranco, CrUX) to produce traffic estimates.', true);
   }
   renderFindings(output, popularity);
 
   heading(output, 'Public signals', 2);
   text(output, 'Analytics tooling observed on this visit does not measure or estimate traffic volume.', true);
   renderFindings(output, signals);
+
+  // AI Findings
+  renderAiFindings(output, section.findings);
+
   renderLimitations(output, section.meta.limitations);
+}
+
+function renderSectionQuality(output: Writer, result: AnalysisResult, key: SectionKey): void {
+  if (!result.quality) return;
+  const sq = result.quality.sections[key];
+  if (!sq) return;
+  ensurePage(output, 14);
+  output.doc.setFontSize(8.5);
+  output.doc.setFont('helvetica', 'normal');
+  output.doc.setTextColor(...GRAY);
+  output.doc.text(
+    `Evidence quality: ${sq.quality.toUpperCase()} (${sq.score}/100) — ${sq.analyzers_completed}/${sq.analyzers_total} analyzers, ${sq.findings_verified} verified, ${sq.findings_inferred} inferred`,
+    MARGIN,
+    output.y,
+  );
+  output.y += 5;
+  if (sq.ai_fallback_recommended) {
+    output.doc.setTextColor(180, 92, 35);
+    output.doc.text('AI intelligence recommended for this section.', MARGIN, output.y);
+    output.doc.setTextColor(...DARK);
+    output.y += 5;
+  }
+}
+
+function renderAiFindings(output: Writer, findings: Finding[]): void {
+  const ai = findings.filter((f) => f.status === 'ai_inferred');
+  if (ai.length === 0) return;
+
+  heading(output, 'AI / Research verdicts', 2);
+  text(output, 'These findings were produced by AI intelligence and are clearly marked as hypotheses.', true);
+  output.y += 2;
+  for (const finding of ai) {
+    ensurePage(output, 16);
+    output.doc.setFont('helvetica', 'bold');
+    output.doc.setFontSize(9.5);
+    output.doc.setTextColor(...DARK);
+    output.doc.text(finding.name, MARGIN, output.y);
+    statusBadge(output, finding.status, Math.min(MARGIN + output.doc.getTextWidth(finding.name) + 4, 160), output.y);
+    output.y += 5;
+    // Show reasoning from AI evidence
+    const reasoning = finding.evidence.find((e) => e.kind === 'ai_reasoning');
+    if (reasoning?.excerpt) text(output, `Reasoning: ${reasoning.excerpt}`, true);
+    if (finding.limitations.length > 0) text(output, `Limitations: ${finding.limitations.join('; ')}`, true);
+    output.y += 2;
+  }
 }
 
 function renderFindings(output: Writer, findings: Finding[]): void {
