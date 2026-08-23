@@ -1,4 +1,4 @@
-# WebLens backend
+# ReverseX backend
 
 FastAPI service that collects observable evidence from a target website and runs deterministic
 analyzers over it. Detection never involves an AI model.

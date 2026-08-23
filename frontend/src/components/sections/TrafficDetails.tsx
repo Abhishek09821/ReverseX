@@ -38,7 +38,7 @@ export function TrafficDetails({ section }: { section: Section }) {
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <p className="text-sm font-medium">Traffic estimates unavailable</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                WebLens will not infer visit counts, rank, or a popularity band from page requests.
+                ReverseX will not infer visit counts, rank, or a popularity band from page requests.
                 A credible external traffic provider is required.
               </p>
             </div>

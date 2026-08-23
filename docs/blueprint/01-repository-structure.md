@@ -49,7 +49,7 @@ weblens/
 │   │   │   ├── sections.py       # per-section payloads + SectionSet
 │   │   │   ├── security.py       # SecurityScore, SecurityRuleResult
 │   │   │   ├── scan.py           # ScanRequest, ScanJobState, AnalysisResult
-│   │   │   └── errors.py         # ScanError, ErrorCode, WebLensError hierarchy
+│   │   │   └── errors.py         # ScanError, ErrorCode, ReverseXError hierarchy
 │   │   │
 │   │   ├── collection/           # everything that touches the network
 │   │   │   ├── base.py           # Collector protocol + StageSink seam

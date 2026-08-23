@@ -30,9 +30,9 @@ from weblens.domain.errors import (
     ProblemDetail,
     RateLimitedError,
     ResultExpiredError,
+    ReverseXError,
     ScanInProgressError,
     ScanNotFoundError,
-    WebLensError,
 )
 from weblens.domain.scan import (
     AnalysisResult,
@@ -44,6 +44,7 @@ from weblens.logging import get_logger, scan_context
 from weblens.orchestration.job_store import InMemoryJobStore, Job
 from weblens.orchestration.pipeline import ScanPipeline
 from weblens.orchestration.progress import ProgressChannel
+from weblens.orchestration.stats import UsageCounter
 from weblens.research.base import NullSearchProvider, SearchProvider
 from weblens.utils.ids import new_ulid
 from weblens.utils.timing import utc_now
@@ -60,10 +61,12 @@ class ScanService:
         collector: Collector,
         search_provider: SearchProvider | None = None,
         inference_provider: InferenceProvider | None = None,
+        usage_counter: UsageCounter | None = None,
     ) -> None:
         self._settings = settings
         self._store = store
         self._guard = guard
+        self._usage_counter = usage_counter or UsageCounter(settings.stats_path, enabled=False)
         self._pipeline = ScanPipeline(
             settings,
             collector,
@@ -245,141 +248,152 @@ class ScanService:
 
         if SectionKey.TECHNOLOGY in target_sections:
             tech_context = f"Detected technologies: {', '.join(detected_tech[:20])}{context_suffix}"
-            questions.extend([
-                InferenceQuestion(
-                    id="tech:frontend_framework",
-                    question="Based on all observable evidence (DOM structure, JavaScript "
-                    "patterns, hydration signals, runtime globals, script URLs), what "
-                    "frontend framework or rendering system is this website most likely using? "
-                    "Consider: React, Vue, Angular, Svelte, "
-                    "Next.js, Nuxt, Astro, custom/proprietary.",
-                    context=tech_context,
-                    section="technology",
-                ),
-                InferenceQuestion(
-                    id="tech:backend_technology",
-                    question="Based on observable evidence (HTTP headers, API response patterns, "
-                    "URL structures, cookie naming, error page signatures), what backend "
-                    "technology or server-side framework is most likely in use? "
-                    "If the backend technology is not publicly determinable from external "
-                    "observation, state that clearly with verdict 'not_publicly_determinable'.",
-                    context=tech_context,
-                    section="technology",
-                ),
-                InferenceQuestion(
-                    id="tech:architecture_pattern",
-                    question="What architecture patterns are supported by the evidence? "
-                    "Consider: SSR vs CSR vs SSG, microservices vs monolith, JAMstack, "
-                    "serverless, edge-rendered. What is the rendering model?",
-                    context=tech_context,
-                    section="technology",
-                ),
-                InferenceQuestion(
-                    id="tech:data_layer",
-                    question="Is there any publicly observable evidence of the database, "
-                    "cache (Redis/Memcached), message queue, or data layer technology? "
-                    "If not determinable from public observation, verdict must be "
-                    "'not_publicly_determinable'. Never fabricate database claims.",
-                    context=tech_context,
-                    section="technology",
-                ),
-                InferenceQuestion(
-                    id="tech:build_tooling",
-                    question="Based on script bundle patterns, source map references, "
-                    "module format, and chunk naming conventions, what build tooling "
-                    "is likely in use? Consider: webpack, Vite, esbuild, Turbopack, Parcel.",
-                    context=tech_context,
-                    section="technology",
-                ),
-                InferenceQuestion(
-                    id="tech:authentication",
-                    question="Based on cookies, headers, redirect patterns, and API endpoints, "
-                    "what authentication mechanism or provider might be in use? "
-                    "Consider: OAuth, JWT, session-based, SSO providers.",
-                    context=tech_context,
-                    section="technology",
-                ),
-            ])
+            questions.extend(
+                [
+                    InferenceQuestion(
+                        id="tech:frontend_framework",
+                        question="Based on all observable evidence (DOM structure, JavaScript "
+                        "patterns, hydration signals, runtime globals, script URLs), what "
+                        "frontend framework or rendering system is this website most likely using? "
+                        "Consider: React, Vue, Angular, Svelte, "
+                        "Next.js, Nuxt, Astro, custom/proprietary.",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                    InferenceQuestion(
+                        id="tech:backend_technology",
+                        question="Based on observable evidence (HTTP headers, "
+                        "API response patterns, URL structures, cookie naming, "
+                        "error page signatures), what backend technology or server-side "
+                        "framework is most likely in use? If the backend technology is not "
+                        "publicly determinable from external observation, state that clearly "
+                        "with verdict 'not_publicly_determinable'.",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                    InferenceQuestion(
+                        id="tech:architecture_pattern",
+                        question="What architecture patterns are supported by the evidence? "
+                        "Consider: SSR vs CSR vs SSG, microservices vs monolith, JAMstack, "
+                        "serverless, edge-rendered. What is the rendering model?",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                    InferenceQuestion(
+                        id="tech:data_layer",
+                        question="Is there any publicly observable evidence of the database, "
+                        "cache (Redis/Memcached), message queue, or data layer technology? "
+                        "If not determinable from public observation, verdict must be "
+                        "'not_publicly_determinable'. Never fabricate database claims.",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                    InferenceQuestion(
+                        id="tech:build_tooling",
+                        question="Based on script bundle patterns, source map references, "
+                        "module format, and chunk naming conventions, what build tooling "
+                        "is likely in use? Consider: webpack, Vite, esbuild, Turbopack, Parcel.",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                    InferenceQuestion(
+                        id="tech:authentication",
+                        question="Based on cookies, headers, redirect patterns, and API endpoints, "
+                        "what authentication mechanism or provider might be in use? "
+                        "Consider: OAuth, JWT, session-based, SSO providers.",
+                        context=tech_context,
+                        section="technology",
+                    ),
+                ]
+            )
 
         if SectionKey.DESIGN in target_sections:
             design_findings = sections.design.findings
             design_obs = [f.name for f in design_findings if f.is_asserted][:20]
             design_context = f"Design observations: {', '.join(design_obs)}{context_suffix}"
-            questions.extend([
-                InferenceQuestion(
-                    id="design:system",
-                    question="Based on the observable design evidence (typography, colors, "
-                    "spacing, component patterns, layout system), what design system or "
-                    "component library might this website be using? Consider: Material Design, "
-                    "Ant Design, Tailwind components, custom/proprietary design system.",
-                    context=design_context,
-                    section="design",
-                ),
-                InferenceQuestion(
-                    id="design:component_structure",
-                    question="Based on DOM structure, CSS class naming patterns, and repeated "
-                    "UI patterns, what is the likely component architecture? Describe the "
-                    "page hierarchy: header/nav, hero, content sections, cards/grids, footer.",
-                    context=design_context,
-                    section="design",
-                ),
-                InferenceQuestion(
-                    id="design:responsive_strategy",
-                    question="Based on observed breakpoints, viewport behavior, and CSS patterns, "
-                    "what is the responsive design strategy? Mobile-first? Desktop-first? "
-                    "What layout patterns are used (flex, grid, responsive containers)?",
-                    context=design_context,
-                    section="design",
-                ),
-            ])
+            questions.extend(
+                [
+                    InferenceQuestion(
+                        id="design:system",
+                        question="Based on the observable design evidence (typography, colors, "
+                        "spacing, component patterns, layout system), what design system or "
+                        "component library might this website be using? Consider: Material Design, "
+                        "Ant Design, Tailwind components, custom/proprietary design system.",
+                        context=design_context,
+                        section="design",
+                    ),
+                    InferenceQuestion(
+                        id="design:component_structure",
+                        question="Based on DOM structure, CSS class naming patterns, and repeated "
+                        "UI patterns, what is the likely component architecture? Describe the "
+                        "page hierarchy: header/nav, hero, content sections, cards/grids, footer.",
+                        context=design_context,
+                        section="design",
+                    ),
+                    InferenceQuestion(
+                        id="design:responsive_strategy",
+                        question="Based on observed breakpoints, viewport behavior, and CSS "
+                        "patterns, what is the responsive design strategy? Mobile-first? "
+                        "Desktop-first? What layout patterns are used (flex, grid, "
+                        "responsive containers)?",
+                        context=design_context,
+                        section="design",
+                    ),
+                ]
+            )
 
         if SectionKey.SECURITY in target_sections:
             security_findings = sections.security.findings
             security_obs = [f.name for f in security_findings if f.is_asserted][:20]
             security_context = f"Security observations: {', '.join(security_obs)}{context_suffix}"
-            questions.extend([
-                InferenceQuestion(
-                    id="security:posture_assessment",
-                    question="Based on the observable security evidence (headers, TLS, cookies, "
-                    "CSP, CORS, mixed content), provide an overall security posture assessment. "
-                    "What are the notable strengths and observable gaps? "
-                    "IMPORTANT: This is an externally observable assessment only. "
-                    "You cannot claim the site is secure or insecure "
-                    "— only describe what is observable.",
-                    context=security_context,
-                    section="security",
-                ),
-                InferenceQuestion(
-                    id="security:third_party_risk",
-                    question="Based on third-party scripts, external resources, and cross-origin "
-                    "requests observed, what is the third-party security exposure? "
-                    "Are there notable concentrations of external dependencies?",
-                    context=security_context,
-                    section="security",
-                ),
-            ])
+            questions.extend(
+                [
+                    InferenceQuestion(
+                        id="security:posture_assessment",
+                        question="Based on the observable security evidence (headers, TLS, "
+                        "cookies, CSP, CORS, mixed content), provide an overall security posture "
+                        "assessment. What are the notable strengths and observable gaps? "
+                        "IMPORTANT: This is an externally observable assessment only. "
+                        "You cannot claim the site is secure or insecure "
+                        "— only describe what is observable.",
+                        context=security_context,
+                        section="security",
+                    ),
+                    InferenceQuestion(
+                        id="security:third_party_risk",
+                        question="Based on third-party scripts, external resources, and "
+                        "cross-origin requests observed, what is the third-party security "
+                        "exposure? Are there notable concentrations of external dependencies?",
+                        context=security_context,
+                        section="security",
+                    ),
+                ]
+            )
 
         if SectionKey.TRAFFIC in target_sections:
             traffic_context = f"Target domain analysis{context_suffix}"
-            questions.extend([
-                InferenceQuestion(
-                    id="traffic:popularity_estimate",
-                    question="Based on public information and publicly available ranking data, "
-                    "what is the likely popularity band for this website? "
-                    "Only cite verifiable public sources. If no credible source exists, "
-                    "verdict must be 'unable_to_verify'. Never fabricate exact traffic numbers.",
-                    context=traffic_context,
-                    section="traffic",
-                ),
-                InferenceQuestion(
-                    id="traffic:market_position",
-                    question="Based on the detected analytics services, third-party integrations, "
-                    "and overall site sophistication, what market segment does this website "
-                    "likely serve? Enterprise, mid-market, small business, consumer?",
-                    context=traffic_context,
-                    section="traffic",
-                ),
-            ])
+            questions.extend(
+                [
+                    InferenceQuestion(
+                        id="traffic:popularity_estimate",
+                        question="Based on public information and publicly available ranking data, "
+                        "what is the likely popularity band for this website? Only cite "
+                        "verifiable public sources. If no credible source exists, verdict must "
+                        "be 'unable_to_verify'. Never fabricate exact traffic numbers.",
+                        context=traffic_context,
+                        section="traffic",
+                    ),
+                    InferenceQuestion(
+                        id="traffic:market_position",
+                        question="Based on the detected analytics services, third-party "
+                        "integrations, and overall site sophistication, what market segment "
+                        "does this website likely serve? Enterprise, mid-market, small business, "
+                        "consumer?",
+                        context=traffic_context,
+                        section="traffic",
+                    ),
+                ]
+            )
 
         return questions
 
@@ -466,7 +480,7 @@ class ScanService:
         running_for_host, last_seen = await self._store.host_activity(target.host)
         if running_for_host >= self._settings.max_concurrent_scans_per_host:
             raise RateLimitedError(
-                f"A scan of {target.host} is already running. WebLens runs one scan per host at "
+                f"A scan of {target.host} is already running. ReverseX runs one scan per host at "
                 "a time to avoid load on the target.",
                 retry_after_seconds=15,
             )
@@ -476,7 +490,7 @@ class ScanService:
             if elapsed < interval:
                 wait = int(interval - elapsed) + 1
                 raise RateLimitedError(
-                    f"{target.host} was scanned {int(elapsed)}s ago. WebLens spaces scans of the "
+                    f"{target.host} was scanned {int(elapsed)}s ago. ReverseX spaces scans of the "
                     f"same host by {int(interval)}s.",
                     retry_after_seconds=wait,
                 )
@@ -499,7 +513,7 @@ class ScanService:
                 await job.channel.mark_failed(ProblemDetail.from_error(budget_error))
                 logger.warning("scan exceeded budget")
                 return
-            except WebLensError as error:
+            except ReverseXError as error:
                 await job.channel.mark_failed(ProblemDetail.from_error(error))
                 logger.info("scan failed", extra={"code": error.code.value, "detail": error.detail})
                 return
@@ -507,12 +521,18 @@ class ScanService:
                 logger.exception("scan crashed")
                 await job.channel.mark_failed(
                     ProblemDetail.from_error(
-                        WebLensError("An unexpected error ended the scan. The incident was logged.")
+                        ReverseXError(
+                            "An unexpected error ended the scan. The incident was logged."
+                        )
                     )
                 )
                 return
 
             await self._store.set_result(job.scan_id, result)
+            # Counted once a result exists, so a scan that failed before assembly is not
+            # advertised as an analysis. Deliberately after `set_result` and before the
+            # channel is marked finished, both of which matter more than the counter.
+            await self._usage_counter.record_scan()
             await job.channel.mark_finished(result.scan.status)
             logger.info(
                 "scan finished",

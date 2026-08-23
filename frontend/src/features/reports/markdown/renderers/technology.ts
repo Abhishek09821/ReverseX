@@ -1,10 +1,13 @@
-import { findingStatusLabel } from '@/lib/format/status';
 import { buildTechPresentation } from '@/lib/presentation/technology';
-import type { Finding } from '@/types/analysis';
 import { findingStatusToVerdict, verdictLabel } from '@/types/analysis';
 
 import { bullets, heading, section as join, table } from '../kit';
-import { aiVerdictBlock, evidenceQualityBlock, standardDocument, type RenderContext } from '../shared';
+import {
+  evidenceQualityBlock,
+  siblingReportsBlock,
+  standardDocument,
+  type RenderContext,
+} from '../shared';
 
 /** Website Technical Stack report matching the spec template. */
 export function renderTechnology(ctx: RenderContext): string {
@@ -109,6 +112,7 @@ export function renderTechnology(ctx: RenderContext): string {
     evidenceQuality,
     unknowns,
     researchBlock,
+    siblingReportsBlock('technology'),
   );
 
   function count(status: (typeof findings)[number]['status']): number {

@@ -92,7 +92,7 @@ tabular data over decorative cards, muted surface palette with one accent, keybo
 URL input, `g` + section key to jump, `⌘K` command palette in a later phase). Dark and light themes
 both first-class via CSS custom properties defined in `index.css` (Tailwind v4 `@theme`).
 
-Accessibility of WebLens itself is part of the definition of done: semantic landmarks, labelled
+Accessibility of ReverseX itself is part of the definition of done: semantic landmarks, labelled
 controls, visible focus rings, `aria-live` for scan status, no color-only status encoding (status
 dots always paired with text).
 

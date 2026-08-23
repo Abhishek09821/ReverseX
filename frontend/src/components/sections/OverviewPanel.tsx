@@ -1,217 +1,353 @@
-/** Focused V2 overview with evidence quality gate and AI intelligence fallback. */
-import { useState } from 'react';
+/** Focused V2 overview: four reports at a glance, plus the evidence gate and AI fallback. */
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ActivityIcon,
+  ArrowRightIcon,
   BrainCircuitIcon,
   CodeIcon,
-  ExternalLinkIcon,
   GaugeIcon,
   PaletteIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  TypeIcon,
 } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
+import { ScoreBar, ScoreRing } from '@/components/sections/ScoreRing';
 import { FindingStatusBadge } from '@/components/sections/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api/client';
+import { getRepository } from '@/lib/db/repository';
+import { buildDesignPresentation } from '@/lib/presentation/design';
 import { buildOverview } from '@/lib/presentation/overview';
+import { cn } from '@/lib/utils';
 import type { AnalysisResult, EvidenceQuality, SectionKey } from '@/types/analysis';
 
-export function OverviewPanel({ result }: { result: AnalysisResult }) {
+export function OverviewPanel({
+  result,
+  onOpenSection,
+}: {
+  result: AnalysisResult;
+  onOpenSection?: (key: SectionKey) => void;
+}) {
   const overview = buildOverview(result);
+  const design = buildDesignPresentation(result);
   const quality = result.quality;
+  const evidence = overview.evidence;
+  const totalFindings =
+    evidence.verified + evidence.stronglyInferred + evidence.inferred + evidence.aiInferred;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">{overview.target.host}</h2>
-          <Badge variant="outline">{overview.target.scanStatus.replace(/_/g, ' ')}</Badge>
-          {overview.target.httpStatus !== null && (
-            <Badge variant="muted" className="font-mono">
-              HTTP {overview.target.httpStatus}
-            </Badge>
-          )}
-        </div>
-        <a
-          href={overview.target.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-1 inline-flex items-center gap-1 break-all font-mono text-sm text-muted-foreground hover:text-foreground"
+    <div className="space-y-4">
+      {quality && <EvidenceQualityCard quality={quality} scanId={result.scan.scan_id} />}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Security posture */}
+        <Panel
+          icon={ShieldCheckIcon}
+          title="Security posture"
+          note="Passive observation, not proof a site is secure"
+          onOpen={onOpenSection ? () => onOpenSection('security') : undefined}
+          delay={0}
         >
-          {overview.target.url}
-          <ExternalLinkIcon className="size-3 shrink-0" aria-hidden="true" />
-        </a>
-      </div>
+          {overview.security.percentage === null ? (
+            <Empty>A posture score was not produced for this scan.</Empty>
+          ) : (
+            <div className="flex items-center gap-5">
+              <ScoreRing percentage={overview.security.percentage} label="posture" size={116} />
+              <div className="min-w-0">
+                {overview.security.bandPhrase && (
+                  <p className="text-sm font-medium">{overview.security.bandPhrase}</p>
+                )}
+                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                  Published rules only. Unevaluable rules are excluded from both sides of the
+                  ratio.
+                </p>
+              </div>
+            </div>
+          )}
+        </Panel>
 
-      {/* Evidence Quality Gate */}
-      {quality && (
-        <EvidenceQualityCard quality={quality} scanId={result.scan.scan_id} />
-      )}
+        {/* Evidence mix */}
+        <Panel
+          icon={GaugeIcon}
+          title="Evidence mix"
+          note={`${evidence.analyzersCompleted}/${evidence.analyzersTotal} analyzers completed`}
+          delay={60}
+        >
+          {totalFindings === 0 && evidence.unknown === 0 ? (
+            <Empty>No findings were produced.</Empty>
+          ) : (
+            <dl className="space-y-3">
+              <Measure
+                label="Verified"
+                value={evidence.verified}
+                max={Math.max(1, totalFindings + evidence.unknown)}
+                tone="bg-status-verified"
+                delay={120}
+              />
+              <Measure
+                label="Strongly inferred"
+                value={evidence.stronglyInferred}
+                max={Math.max(1, totalFindings + evidence.unknown)}
+                tone="bg-status-strongly-inferred"
+                delay={180}
+              />
+              <Measure
+                label="Inferred"
+                value={evidence.inferred}
+                max={Math.max(1, totalFindings + evidence.unknown)}
+                tone="bg-status-inferred"
+                delay={240}
+              />
+              {evidence.aiInferred > 0 && (
+                <Measure
+                  label="AI hypotheses"
+                  value={evidence.aiInferred}
+                  max={Math.max(1, totalFindings + evidence.unknown)}
+                  tone="bg-status-ai-inferred"
+                  delay={300}
+                />
+              )}
+              <Measure
+                label="Absent or unknown"
+                value={evidence.unknown}
+                max={Math.max(1, totalFindings + evidence.unknown)}
+                tone="bg-status-neutral"
+                delay={360}
+              />
+            </dl>
+          )}
+        </Panel>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <CodeIcon className="size-4 text-primary" aria-hidden="true" />
-              Tech Stack
-            </CardTitle>
-            {overview.technology.rendering && (
-              <CardDescription className="flex flex-wrap items-center gap-2">
-                Rendering: {overview.technology.rendering.value}
-                <FindingStatusBadge status={overview.technology.rendering.status} />
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {overview.technology.unavailable ? (
-              <p className="text-sm text-muted-foreground">Technology evidence was unavailable.</p>
-            ) : overview.technology.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No technologies were identified from observable signals.
+        {/* Traffic */}
+        <Panel
+          icon={ActivityIcon}
+          title="Traffic & popularity"
+          note={`Provider: ${overview.traffic.providerName ?? 'none configured'}`}
+          onOpen={onOpenSection ? () => onOpenSection('traffic') : undefined}
+          delay={120}
+        >
+          {overview.traffic.estimates.length > 0 ? (
+            <ul className="space-y-2.5">
+              {overview.traffic.estimates.map((estimate) => (
+                <li key={estimate.name} className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 text-sm">
+                    <span className="text-muted-foreground">{estimate.name}: </span>
+                    <span className="font-medium">{estimate.value}</span>
+                  </span>
+                  <FindingStatusBadge status={estimate.status} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty>{overview.traffic.unavailableReason}</Empty>
+          )}
+
+          {overview.traffic.analyticsServices.length > 0 && (
+            <div className="mt-5 border-t border-border/60 pt-4">
+              <p className="text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+                Analytics observed
               </p>
-            ) : (
-              <ul className="space-y-2">
-                {overview.technology.items.map((item) => (
-                  <li key={`${item.name}-${item.status}`} className="flex items-center justify-between gap-2 text-sm">
-                    <span>{item.name}</span>
-                    <FindingStatusBadge status={item.status} />
-                  </li>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {overview.traffic.analyticsServices.map((service) => (
+                  <Chip key={service}>{service}</Chip>
                 ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          )}
+        </Panel>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <PaletteIcon className="size-4 text-primary" aria-hidden="true" />
-              Design
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {overview.design.unavailable ? (
-              <p className="text-sm text-muted-foreground">Design evidence was unavailable.</p>
-            ) : (
-              <>
-                {overview.design.fonts.length > 0 && (
-                  <p className="text-sm">Fonts: {overview.design.fonts.join(', ')}</p>
-                )}
-                {overview.design.colorsObserved !== null && (
-                  <p className="text-sm">{overview.design.colorsObserved} background colors observed</p>
-                )}
-                {overview.design.observations.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {overview.design.observations.map((observation) => (
-                      <Badge key={observation} variant="muted">
-                        {observation}
-                      </Badge>
+        {/* Tech stack */}
+        <Panel
+          icon={CodeIcon}
+          title="Tech stack"
+          note={
+            overview.technology.rendering
+              ? `Rendering: ${overview.technology.rendering.value}`
+              : 'Observable signals only'
+          }
+          onOpen={onOpenSection ? () => onOpenSection('technology') : undefined}
+          delay={180}
+          className="lg:col-span-2"
+        >
+          {overview.technology.unavailable ? (
+            <Empty>Technology evidence was unavailable.</Empty>
+          ) : overview.technology.items.length === 0 ? (
+            <Empty>No technologies were identified from observable signals.</Empty>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {overview.technology.items.map((item) => (
+                <li
+                  key={`${item.name}-${item.status}`}
+                  className="tech-chip flex items-center gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2"
+                >
+                  <span className="text-sm font-medium">{item.name}</span>
+                  <FindingStatusBadge status={item.status} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        {/* Design */}
+        <Panel
+          icon={PaletteIcon}
+          title="Design"
+          note="Rendered visual system"
+          onOpen={onOpenSection ? () => onOpenSection('design') : undefined}
+          delay={240}
+        >
+          {overview.design.unavailable ? (
+            <Empty>Design evidence was unavailable.</Empty>
+          ) : (
+            <div className="space-y-4">
+              {design.colors.backgrounds.length > 0 && (
+                <div>
+                  <p className="text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+                    Observed colors
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {design.colors.backgrounds.slice(0, 10).map((color, index) => (
+                      <span
+                        key={`${color.value}-${index}`}
+                        title={color.hex ?? color.value}
+                        className="swatch size-7 rounded-md border border-border/70 shadow-xs"
+                        style={{
+                          backgroundColor: color.hex ?? color.value,
+                          animationDelay: `${300 + index * 35}ms`,
+                        }}
+                      />
                     ))}
                   </div>
-                )}
-                {overview.design.fonts.length === 0 &&
-                  overview.design.colorsObserved === null &&
-                  overview.design.observations.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No design values were observed.</p>
-                  )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <ShieldCheckIcon className="size-4 text-primary" aria-hidden="true" />
-              Security Posture
-            </CardTitle>
-            <CardDescription>Passive external observations, not proof that the site is secure.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {overview.security.percentage === null ? (
-              <p className="text-sm text-muted-foreground">A posture score was not available.</p>
-            ) : (
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="font-mono text-2xl font-semibold tabular-nums">
-                  {overview.security.percentage}%
-                </span>
-                {overview.security.bandPhrase && (
-                  <Badge variant="outline">{overview.security.bandPhrase}</Badge>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              {overview.design.fonts.length > 0 && (
+                <div>
+                  <p className="flex items-center gap-1.5 text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+                    <TypeIcon className="size-3" aria-hidden="true" />
+                    Typography
+                  </p>
+                  <p className="mt-1.5 truncate text-sm">{overview.design.fonts.join(', ')}</p>
+                </div>
+              )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <ActivityIcon className="size-4 text-primary" aria-hidden="true" />
-              Traffic & Popularity
-            </CardTitle>
-            <CardDescription>
-              Provider: {overview.traffic.providerName ?? 'none configured'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {overview.traffic.estimates.length > 0 ? (
-              <ul className="space-y-2">
-                {overview.traffic.estimates.map((estimate) => (
-                  <li key={estimate.name} className="flex items-center justify-between gap-3 text-sm">
-                    <span>
-                      {estimate.name}: <strong>{estimate.value}</strong>
-                    </span>
-                    <FindingStatusBadge status={estimate.status} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {overview.traffic.unavailableReason}
-              </p>
-            )}
-            {overview.traffic.analyticsServices.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">Observed analytics signals</p>
+              {overview.design.observations.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {overview.traffic.analyticsServices.map((service) => (
-                    <Badge key={service} variant="outline">{service}</Badge>
+                  {overview.design.observations.map((observation) => (
+                    <Chip key={observation}>{observation}</Chip>
                   ))}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
 
-        <Card className="sm:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <GaugeIcon className="size-4 text-primary" aria-hidden="true" />
-              Evidence Summary
-            </CardTitle>
-            <CardDescription>
-              {overview.evidence.analyzersCompleted}/{overview.evidence.analyzersTotal} analyzers completed
-              {overview.evidence.errorCount > 0 && ` · ${overview.evidence.errorCount} scan issues`}
-              {overview.evidence.limitationCount > 0 && ` · ${overview.evidence.limitationCount} stated limitations`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-            <EvidenceCount label="Verified" value={overview.evidence.verified} />
-            <EvidenceCount label="Strongly inferred" value={overview.evidence.stronglyInferred} />
-            <EvidenceCount label="Inferred" value={overview.evidence.inferred} />
-            <EvidenceCount label="AI hypotheses" value={overview.evidence.aiInferred} />
-            <EvidenceCount label="Negative / unknown" value={overview.evidence.unknown} />
-          </CardContent>
-        </Card>
+              {design.colors.backgrounds.length === 0 &&
+                overview.design.fonts.length === 0 &&
+                overview.design.observations.length === 0 && (
+                  <Empty>No design values were observed.</Empty>
+                )}
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );
 }
 
-/** Evidence quality gate card with AI fallback button */
+/* ---------------------------------------------------------------------------------------- */
+
+function Panel({
+  icon: Icon,
+  title,
+  note,
+  children,
+  onOpen,
+  delay = 0,
+  className,
+}: {
+  icon: typeof CodeIcon;
+  title: string;
+  note?: string;
+  children: ReactNode;
+  onOpen?: () => void;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        'reveal group/panel relative flex flex-col rounded-xl border border-border bg-card p-5 transition-[border-color,box-shadow] duration-300 hover:border-border hover:shadow-md sm:p-6',
+        className,
+      )}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            {title}
+          </h3>
+          {note && <p className="mt-1 truncate text-xs text-muted-foreground">{note}</p>}
+        </div>
+        {onOpen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpen}
+            aria-label={`Open ${title} report`}
+            className="-mt-1 -mr-1 size-8 shrink-0 opacity-0 transition-opacity group-hover/panel:opacity-100 focus-visible:opacity-100"
+          >
+            <ArrowRightIcon className="size-4" />
+          </Button>
+        )}
+      </div>
+      <div className="mt-5 flex-1">{children}</div>
+    </section>
+  );
+}
+
+function Measure({
+  label,
+  value,
+  max,
+  tone,
+  delay,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone: string;
+  delay: number;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <dt className="text-xs text-muted-foreground">{label}</dt>
+        <dd className="font-mono text-sm font-medium tabular-nums">{value}</dd>
+      </div>
+      <div className="mt-1.5">
+        <ScoreBar value={value} max={max} tone={tone} delayMs={delay} />
+      </div>
+    </div>
+  );
+}
+
+function Chip({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full bg-secondary/70 px-2.5 py-1 text-xs text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <p className="text-sm leading-6 text-muted-foreground">{children}</p>;
+}
+
+/* ---------------------------------------------------------------------------------------- */
+
+/** Evidence quality gate with a provider-aware, user-initiated AI fallback. */
 function EvidenceQualityCard({
   quality,
   scanId,
@@ -219,8 +355,31 @@ function EvidenceQualityCard({
   quality: NonNullable<AnalysisResult['quality']>;
   scanId: string;
 }) {
+  const queryClient = useQueryClient();
   const [isRunning, setIsRunning] = useState(false);
-  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<
+    'idle' | 'checking' | 'available' | 'unavailable'
+  >(quality.ai_fallback_available ? 'checking' : 'idle');
+  const [aiResult, setAiResult] = useState<{ kind: 'success' | 'error'; message: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!quality.ai_fallback_available) return;
+
+    let active = true;
+    void api
+      .intelligenceStatus(scanId)
+      .then((status) => {
+        if (active) setAvailability(status.available ? 'available' : 'unavailable');
+      })
+      .catch(() => {
+        if (active) setAvailability('unavailable');
+      });
+    return () => {
+      active = false;
+    };
+  }, [quality.ai_fallback_available, scanId]);
 
   const handleRunIntelligence = async () => {
     setIsRunning(true);
@@ -229,83 +388,133 @@ function EvidenceQualityCard({
       const response = await api.runIntelligence(scanId, {
         sections: quality.ai_fallback_sections as SectionKey[],
       });
-      setAiResult(
-        `AI intelligence completed. ${response.findings_added} findings added to ${response.sections_enhanced.join(', ')}.`
-      );
+      const enhancedResult = await api.result(scanId);
+      const repository = getRepository();
+      const screenshots = await repository.getScreenshots(scanId);
+      await repository.persist(enhancedResult, screenshots);
+      await api.deleteScan(scanId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['scan', scanId, 'result'] }),
+        queryClient.invalidateQueries({ queryKey: ['scans'] }),
+      ]);
+      setAvailability('unavailable');
+      setAiResult({
+        kind: 'success',
+        message: `AI Intelligence completed and saved locally. ${response.findings_added} findings were added to ${response.sections_enhanced.join(', ')}.`,
+      });
     } catch {
-      setAiResult('AI intelligence failed. The normal scan result is still available.');
+      setAiResult({
+        kind: 'error',
+        message:
+          'AI Intelligence could not be completed and saved. The normal local scan result is unchanged.',
+      });
     } finally {
       setIsRunning(false);
     }
   };
 
   return (
-    <Card className={quality.ai_fallback_available ? 'border-amber-200 dark:border-amber-800' : ''}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <BrainCircuitIcon className="size-4 text-primary" aria-hidden="true" />
-          Evidence Quality
-          <QualityBadge quality={quality.overall} />
-        </CardTitle>
-        <CardDescription>
-          Overall score: {quality.overall_score}/100
-          {quality.ai_fallback_available && ' · AI intelligence available'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Per-section quality */}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Object.values(quality.sections).map((sq) => (
-            <div key={sq.section} className="flex items-center justify-between gap-2 text-sm">
-              <span className="capitalize">{sq.section}</span>
-              <div className="flex items-center gap-1.5">
-                <QualityBadge quality={sq.quality} />
-                <span className="font-mono text-xs text-muted-foreground">{sq.score}</span>
-              </div>
+    <section className="reveal rounded-xl border border-border bg-card p-5 sm:p-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+        <div className="flex items-center gap-5">
+          <ScoreRing percentage={quality.overall_score} label="evidence" size={104} />
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <BrainCircuitIcon className="size-4 text-primary" aria-hidden="true" />
+              Evidence quality
+            </h2>
+            <div className="mt-2">
+              <QualityBadge quality={quality.overall} />
             </div>
-          ))}
+          </div>
         </div>
 
-        {/* AI fallback option */}
-        {quality.ai_fallback_available && !aiResult && (
-          <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
-            <p className="text-sm font-medium">Evidence collection was incomplete.</p>
-            <p className="text-xs text-muted-foreground">
-              WebLens can research public information about this website and produce
-              evidence-backed technology, design, security and traffic verdicts.
-              AI-generated conclusions will be clearly marked.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isRunning}
-              onClick={handleRunIntelligence}
-              className="gap-1.5"
-            >
-              <SparklesIcon className="size-3.5" aria-hidden="true" />
-              {isRunning ? 'Running AI Intelligence...' : 'Run AI Intelligence'}
-            </Button>
-            {quality.ai_fallback_sections.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Recommended for: {quality.ai_fallback_sections.join(', ')}
-              </p>
-            )}
-          </div>
-        )}
+        <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          {Object.values(quality.sections).map((sq, index) => (
+            <div key={sq.section}>
+              <dt className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-xs text-muted-foreground capitalize">
+                  {sq.section}
+                </span>
+                <span className="font-mono text-xs tabular-nums">{sq.score}</span>
+              </dt>
+              <dd className="mt-1.5">
+                <ScoreBar
+                  value={sq.score}
+                  tone={QUALITY_TONE[sq.quality]}
+                  delayMs={120 + index * 70}
+                />
+                <span className="sr-only">{sq.quality}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
 
-        {/* AI result feedback */}
-        {aiResult && (
-          <div className="rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/30">
-            <p className="text-sm">{aiResult}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Reload the page to see updated findings in section views and reports.
+      {quality.ai_fallback_available && !aiResult && availability !== 'idle' && (
+        <div className="mt-6 border-t border-border/60 pt-5">
+          {availability === 'checking' && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Checking whether AI Intelligence is configured for this scan…
             </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+
+          {availability === 'available' && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Evidence collection was incomplete.</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  ReverseX can research public information and add labelled hypotheses. Direct
+                  observations stay unchanged.
+                  {quality.ai_fallback_sections.length > 0 &&
+                    ` Recommended for: ${quality.ai_fallback_sections.join(', ')}.`}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRunning}
+                onClick={handleRunIntelligence}
+                className="shrink-0 gap-1.5"
+              >
+                <SparklesIcon className={cn('size-3.5', isRunning && 'animate-pulse')} aria-hidden="true" />
+                {isRunning ? 'Running…' : 'Run AI Intelligence'}
+              </Button>
+            </div>
+          )}
+
+          {availability === 'unavailable' && (
+            <p className="text-xs leading-5 text-muted-foreground">
+              AI Intelligence is not configured, or this scan’s temporary server window has ended.
+              The deterministic local result remains available.
+            </p>
+          )}
+        </div>
+      )}
+
+      {aiResult && (
+        <div
+          className={cn(
+            'mt-6 rounded-lg border p-3.5',
+            aiResult.kind === 'success'
+              ? 'border-status-verified/40 bg-status-verified/10'
+              : 'border-destructive/40 bg-destructive/10',
+          )}
+          role="status"
+        >
+          <p className="text-sm leading-6">{aiResult.message}</p>
+        </div>
+      )}
+    </section>
   );
 }
+
+const QUALITY_TONE: Record<EvidenceQuality, string> = {
+  high: 'bg-status-verified',
+  medium: 'bg-status-inferred',
+  low: 'bg-status-attention',
+  failed: 'bg-status-neutral',
+};
 
 function QualityBadge({ quality }: { quality: EvidenceQuality }) {
   const variants: Record<EvidenceQuality, 'verified' | 'inferred' | 'attention' | 'muted'> = {
@@ -314,18 +523,5 @@ function QualityBadge({ quality }: { quality: EvidenceQuality }) {
     low: 'attention',
     failed: 'muted',
   };
-  return (
-    <Badge variant={variants[quality]} className="text-[10px]">
-      {quality.toUpperCase()}
-    </Badge>
-  );
-}
-
-function EvidenceCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <span className="font-mono font-semibold tabular-nums">{value}</span>{' '}
-      <span className="text-muted-foreground">{label}</span>
-    </div>
-  );
+  return <Badge variant={variants[quality]}>{quality.toUpperCase()}</Badge>;
 }

@@ -90,7 +90,7 @@ def _extra_fields(record: logging.LogRecord) -> dict[str, Any]:
 
 
 def configure_logging(level: str = "INFO", fmt: str = "text") -> None:
-    """Install the WebLens logging configuration. Idempotent."""
+    """Install the ReverseX logging configuration. Idempotent."""
     formatter: logging.Formatter = JsonFormatter() if fmt == "json" else TextFormatter()
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(formatter)

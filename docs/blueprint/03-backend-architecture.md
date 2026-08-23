@@ -62,7 +62,7 @@ Browser work is the scarce resource. Controls, all in `config.py`:
 | `max_resource_bytes_captured` | 2 MiB | per-resource body capture ceiling |
 | `max_network_requests_recorded` | 400 | evidence size ceiling |
 | `respect_robots` | true | `robots.txt` disallow on the target path aborts with a clear error |
-| `user_agent` | `WebLens/<version> (+https://…; passive analyzer)` | identifiable, honest |
+| `user_agent` | `ReverseX/<version> (+https://…; passive analyzer)` | identifiable, honest |
 
 Request pattern per scan: one `robots.txt` fetch, one HTTP probe of the target, one TLS handshake,
 one DNS resolution, one browser navigation (plus the subresources the page itself requests). No
@@ -86,7 +86,7 @@ in the result payload.
 ## Error model
 
 ```
-WebLensError(code: ErrorCode, message, detail?, retryable: bool)
+ReverseXError(code: ErrorCode, message, detail?, retryable: bool)
   ├─ TargetValidationError    → 400  INVALID_URL
   ├─ TargetBlockedError       → 403  BLOCKED_TARGET / ROBOTS_DISALLOWED
   ├─ CollectionError          → 502  DNS_FAILURE / CONNECT_FAILURE / TLS_FAILURE / NAVIGATION_TIMEOUT
@@ -117,5 +117,5 @@ mitigations, all implemented in `collection/target.py` and `config.py`:
   as a finding rather than followed blindly).
 - Response bodies are never echoed back verbatim; only bounded, sanitized excerpts.
 
-This is documented in the README as a deployment caveat: **WebLens V1 is a local developer tool and
+This is documented in the README as a deployment caveat: **ReverseX V1 is a local developer tool and
 must not be exposed to an untrusted network without adding authentication and egress controls.**

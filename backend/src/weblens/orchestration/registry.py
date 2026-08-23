@@ -1,6 +1,6 @@
 """Analyzer registry.
 
-One declarative table is the single source of truth for what WebLens can detect. The
+One declarative table is the single source of truth for what ReverseX can detect. The
 capabilities endpoint reads it, the pipeline schedules from it, and the frontend renders
 section states from it - so an unbuilt analyzer surfaces as an honest "not implemented in this
 build" everywhere at once, with no place left to accidentally show an empty panel instead.

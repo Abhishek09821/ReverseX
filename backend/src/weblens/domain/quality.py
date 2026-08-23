@@ -55,9 +55,7 @@ class SectionQuality(BaseModel):
     findings_inferred: int
     findings_negative: int
     ai_fallback_recommended: bool
-    reason: str = Field(
-        description="Human-readable explanation of the quality assessment."
-    )
+    reason: str = Field(description="Human-readable explanation of the quality assessment.")
 
 
 class ScanQuality(BaseModel):
@@ -90,9 +88,7 @@ def assess_quality(sections: SectionSet) -> ScanQuality:
     overall_score = min(scores) if scores else 0
     overall = _band_for_score(overall_score)
 
-    fallback_sections = [
-        key for key, sq in section_qualities.items() if sq.ai_fallback_recommended
-    ]
+    fallback_sections = [key for key, sq in section_qualities.items() if sq.ai_fallback_recommended]
 
     return ScanQuality(
         overall=overall,
@@ -116,14 +112,14 @@ def _assess_section(key: SectionKey, section: Section) -> SectionQuality:  # typ
 
     # Finding status distribution
     verified = sum(
-        1 for f in findings
-        if f.status in (FindingStatus.VERIFIED, FindingStatus.STRONGLY_INFERRED)
+        1 for f in findings if f.status in (FindingStatus.VERIFIED, FindingStatus.STRONGLY_INFERRED)
     )
     inferred = sum(1 for f in findings if f.status == FindingStatus.INFERRED)
     negative = sum(
         1
         for f in findings
-        if f.status in (
+        if f.status
+        in (
             FindingStatus.NOT_DETECTED,
             FindingStatus.NOT_DETERMINABLE,
             FindingStatus.UNABLE_TO_VERIFY,
@@ -197,17 +193,11 @@ def _calculate_section_score(
     - 20% absolute evidence threshold (minimum useful findings per section)
     """
     # Analyzer completion (0-40 points)
-    analyzer_score = (
-        0.0 if analyzers_total == 0
-        else (analyzers_completed / analyzers_total) * 40.0
-    )
+    analyzer_score = 0.0 if analyzers_total == 0 else (analyzers_completed / analyzers_total) * 40.0
 
     # Positive finding density (0-40 points)
     positive = verified + inferred
-    density_score = (
-        0.0 if total_findings == 0
-        else (positive / total_findings) * 40.0
-    )
+    density_score = 0.0 if total_findings == 0 else (positive / total_findings) * 40.0
 
     # Absolute threshold (0-20 points) - minimum useful findings per section type
     threshold = _minimum_findings_threshold(key)

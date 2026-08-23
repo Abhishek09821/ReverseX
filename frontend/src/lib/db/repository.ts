@@ -1,9 +1,10 @@
 /**
  * Scan persistence.
  *
- * The browser is the system of record: results must survive refresh and browser restart, and the
- * backend releases its copy as soon as a write here succeeds. That makes two behaviours
- * non-negotiable, and both are enforced below rather than left to callers:
+ * The browser is the system of record: results must survive refresh and browser restart. The scan
+ * runner normally releases the backend transport copy as soon as this write succeeds; an
+ * AI-eligible scan may retain that temporary copy until the user-triggered enrichment is saved or
+ * the server TTL expires. Two local-storage behaviours remain non-negotiable:
  *
  * 1. A write is one transaction across `scans`, `results`, and `screenshots`, so the library can
  *    never list a scan whose result is missing.
@@ -27,7 +28,7 @@ import {
   type ScanRecord,
   type ScreenshotItem,
   type ScreenshotRecord,
-  type WebLensDb,
+  type ReverseXDb,
 } from './types';
 
 const QUOTA_HEADROOM = 0.9;
@@ -51,10 +52,10 @@ export interface ScanRepository {
 }
 
 export class IdbScanRepository implements ScanRepository {
-  private handle: Promise<IDBPDatabase<WebLensDb>> | null = null;
+  private handle: Promise<IDBPDatabase<ReverseXDb>> | null = null;
 
-  private db(): Promise<IDBPDatabase<WebLensDb>> {
-    this.handle ??= openDB<WebLensDb>(DB_NAME, DB_VERSION, {
+  private db(): Promise<IDBPDatabase<ReverseXDb>> {
+    this.handle ??= openDB<ReverseXDb>(DB_NAME, DB_VERSION, {
       upgrade(database, oldVersion, newVersion, transaction) {
         applyMigrations(database, oldVersion, newVersion, transaction);
       },
@@ -180,7 +181,7 @@ export class IdbScanRepository implements ScanRepository {
         reason ??
         (schemaVersion === '1.0'
           ? 'This V1 scan is preserved in history but its eight-section result is incompatible with the V2 four-report model. Run a new scan to view reports.'
-          : `Saved by a WebLens build using schema ${schemaVersion}; this build reads ${RECORD_SCHEMA_VERSION}.`),
+          : `Saved by a ReverseX build using schema ${schemaVersion}; this build reads ${RECORD_SCHEMA_VERSION}.`),
     };
     await this.setMeta('quarantine', [...existing, entry]);
   }
@@ -258,7 +259,7 @@ export class MemoryScanRepository implements ScanRepository {
 }
 
 async function writeAll(
-  db: IDBPDatabase<WebLensDb>,
+  db: IDBPDatabase<ReverseXDb>,
   record: ScanRecord,
   resultRecord: ResultRecord,
   screenshots: ScreenshotItem[],

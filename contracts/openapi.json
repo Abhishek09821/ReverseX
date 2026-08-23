@@ -519,6 +519,83 @@
         "title": "Confidence",
         "type": "string"
       },
+      "ContactRequest": {
+        "additionalProperties": false,
+        "description": "Bounded client input; all delivery routing remains server-controlled.",
+        "properties": {
+          "current_page": {
+            "maxLength": 2048,
+            "title": "Current Page",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "message": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Id"
+          },
+          "website": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "current_page"
+        ],
+        "title": "ContactRequest",
+        "type": "object"
+      },
+      "ContactResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "accepted",
+            "default": "accepted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "ContactResponse",
+        "type": "object"
+      },
       "DesignPayload": {
         "additionalProperties": false,
         "description": "Recreation-oriented design data. coverage reports sample quality.",
@@ -673,6 +750,7 @@
           "RESULT_EXPIRED",
           "SCAN_IN_PROGRESS",
           "RATE_LIMITED",
+          "CONTACT_UNAVAILABLE",
           "AI_DISABLED",
           "INTERNAL_ERROR"
         ],
@@ -1163,6 +1241,22 @@
           "active_scans"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HoneypotRequest": {
+        "description": "Permissive decoy shape so bots are trapped before ordinary-field validation.",
+        "properties": {
+          "website": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "website"
+        ],
+        "title": "HoneypotRequest",
         "type": "object"
       },
       "HreflangEntry": {
@@ -2245,7 +2339,7 @@
             "type": "string"
           },
           "user_agent": {
-            "default": "WebLens/0.1.0 (+https://github.com/weblens; passive website analyzer; respects robots.txt)",
+            "default": "ReverseX/0.1.0 (+https://github.com/weblens; passive website analyzer; respects robots.txt)",
             "title": "User Agent",
             "type": "string"
           },
@@ -3447,6 +3541,39 @@
         "title": "StageStatus",
         "type": "string"
       },
+      "StatsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "counting_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When counting began, or null if nothing has been counted yet.",
+            "title": "Counting Since"
+          },
+          "enabled": {
+            "description": "False when the deployment disabled counting; total_scans is then 0.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "total_scans": {
+            "description": "Completed scans recorded by this deployment. Aggregate only.",
+            "title": "Total Scans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_scans",
+          "enabled"
+        ],
+        "title": "StatsResponse",
+        "type": "object"
+      },
       "StructuredDataBlock": {
         "additionalProperties": false,
         "properties": {
@@ -3829,12 +3956,68 @@
     }
   },
   "info": {
-    "description": "Evidence-based website technical intelligence.\n\nDetection is deterministic and never performed by an AI model. Every asserted fact carries the\nevidence that supports it, and anything that cannot be established from observation is reported\nas not detected, not determinable, or unable to verify rather than guessed.\n\nAnalysis is passive: WebLens observes what a normal visit reveals. It does not test\nauthentication, submit forms, fuzz inputs, or attempt to bypass access controls.",
-    "title": "WebLens API",
+    "description": "Evidence-based website technical intelligence.\n\nDetection is deterministic and never performed by an AI model. Every asserted fact carries the\nevidence that supports it, and anything that cannot be established from observation is reported\nas not detected, not determinable, or unable to verify rather than guessed.\n\nAnalysis is passive: ReverseX observes what a normal visit reveals. It does not test\nauthentication, submit forms, fuzz inputs, or attempt to bypass access controls.",
+    "title": "ReverseX API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/contact": {
+      "post": {
+        "description": "Rate-limit first, silently trap bots, then wait for the SMTP handoff.",
+        "operationId": "contact_api_contact_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/HoneypotRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ContactRequest"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "The direct client has sent too many support requests."
+          },
+          "503": {
+            "description": "Support contact is disabled or temporarily unavailable."
+          }
+        },
+        "summary": "Send a support request",
+        "tags": [
+          "contact"
+        ]
+      }
+    },
     "/api/v1/ai/explain": {
       "post": {
         "operationId": "explain_api_v1_ai_explain_post",
@@ -4240,6 +4423,27 @@
         "summary": "Structured analysis result",
         "tags": [
           "scans"
+        ]
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "operationId": "stats_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Aggregate scan count for this deployment",
+        "tags": [
+          "meta"
         ]
       }
     },

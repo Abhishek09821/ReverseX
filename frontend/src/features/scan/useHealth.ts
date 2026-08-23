@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { api } from '@/lib/api/client';
+import { api, type Stats } from '@/lib/api/client';
 import type { Capabilities, Health } from '@/types/analysis';
 
 /** Backend liveness and browser readiness, used for pre-flight warnings. */
@@ -24,5 +24,20 @@ export function useCapabilities() {
     queryKey: ['capabilities'],
     queryFn: ({ signal }) => api.capabilities(signal),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Aggregate scans performed by this deployment.
+ *
+ * A real server-side total, so the landing page can state usage instead of implying it from
+ * whatever happens to be in the current browser.
+ */
+export function useStats() {
+  return useQuery<Stats>({
+    queryKey: ['stats'],
+    queryFn: ({ signal }) => api.stats(signal),
+    staleTime: 60_000,
+    retry: false,
   });
 }

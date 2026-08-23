@@ -1,14 +1,19 @@
-import { findingStatusLabel } from '@/lib/format/status';
 import { securityPayloadSchema, type Finding } from '@/types/analysis';
 import { findingStatusToVerdict, verdictLabel } from '@/types/analysis';
 
-import { blockquote, bullets, heading, keyValueTable, section as join, table } from '../kit';
-import { aiVerdictBlock, evidenceQualityBlock, standardDocument, type RenderContext } from '../shared';
+import { blockquote, heading, keyValueTable, section as join, table } from '../kit';
+import {
+  aiVerdictBlock,
+  evidenceQualityBlock,
+  siblingReportsBlock,
+  standardDocument,
+  type RenderContext,
+} from '../shared';
 
 /**
  * Security Analysis report matching the spec template.
  *
- * The score is the only score WebLens produces. The disclaimer clearly states that passive
+ * The score is the only score ReverseX produces. The disclaimer clearly states that passive
  * observations cannot establish complete security.
  */
 export function renderSecurity(ctx: RenderContext): string {
@@ -80,6 +85,7 @@ export function renderSecurity(ctx: RenderContext): string {
     findingsGroup('Technology Disclosure', exposure),
     findingsGroup('Third-Party Scripts', thirdParty),
     aiVerdictBlock(aiFindings, 'AI / Research Verdicts'),
+    siblingReportsBlock('security'),
   );
 }
 

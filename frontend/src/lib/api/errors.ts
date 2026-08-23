@@ -61,7 +61,7 @@ export function describeError(error: unknown): { title: string; detail: string; 
   }
   if (error instanceof TransportError) {
     return {
-      title: 'Could not reach the WebLens backend',
+      title: 'Could not reach the ReverseX backend',
       detail: `${error.message} Check that the API is running on http://127.0.0.1:8000.`,
       code: 'TRANSPORT',
     };

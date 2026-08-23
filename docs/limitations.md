@@ -1,4 +1,4 @@
-# WebLens limitations
+# ReverseX limitations
 
 Canonical, user-facing list. Rendered in the app under `/about`, embedded in generated reports, and
 mirrored by the `limitations[]` fields on results and sections. Every limitation has a stable id so
@@ -9,7 +9,7 @@ code can reference it instead of duplicating prose.
 | `L-SCOPE-01` | scan | One URL per scan. No crawling: findings describe the analyzed page, not the whole site. |
 | `L-SCOPE-02` | scan | A single cold run, one moment in time, one network location, one viewport, one browser (Chromium). Repeat runs will differ. |
 | `L-SCOPE-03` | scan | Publicly reachable, unauthenticated content only. Logged-in, paywalled, and geo-restricted states are not analyzed. |
-| `L-SCOPE-04` | scan | Passive observation only. WebLens does not submit forms, log in, click consent walls, fuzz inputs, or attempt to bypass access controls. |
+| `L-SCOPE-04` | scan | Passive observation only. ReverseX does not submit forms, log in, click consent walls, fuzz inputs, or attempt to bypass access controls. |
 | `L-SCOPE-05` | scan | Sites behind bot protection or consent interstitials may serve a challenge page; when detected, affected sections report restricted access rather than describing the interstitial. |
 | `L-TECH-01` | technology | Detection requires an observable signal. "Not detected" never means "not used" — server-rendered, self-hosted, or heavily bundled technologies are often invisible externally. |
 | `L-TECH-02` | technology | Versions are reported only when a signature captures one explicitly; otherwise the version is "not determinable". |

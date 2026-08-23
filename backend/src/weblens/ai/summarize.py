@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "qwen/qwen3.6-27b"
 
-SYSTEM_PROMPT = """You are a technical writer summarizing website analysis findings for WebLens.
+SYSTEM_PROMPT = """You are a technical writer summarizing website analysis findings for ReverseX.
 
 RULES:
 1. Only summarize information provided in the structured findings below.

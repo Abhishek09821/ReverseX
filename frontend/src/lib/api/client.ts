@@ -20,7 +20,7 @@ import {
   type ScanJobState,
   type SectionKey,
 } from '@/types/analysis';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import { ApiProblemError, ContractError, TransportError } from './errors';
 
@@ -28,11 +28,39 @@ import { ApiProblemError, ContractError, TransportError } from './errors';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 const API_V1 = `${API_BASE}/api/v1`;
 
+const contactResponseSchema = z
+  .object({
+    status: z.literal('accepted'),
+  })
+  .strict();
+
+const statsResponseSchema = z
+  .object({
+    total_scans: z.number().int().nonnegative(),
+    counting_since: z.string().nullish(),
+    enabled: z.boolean(),
+  })
+  .strict();
+
+export type Stats = z.infer<typeof statsResponseSchema>;
+
 export interface ScanRequestOptions {
   include_screenshot?: boolean;
   include_full_page_screenshot?: boolean;
   sections?: SectionKey[] | null;
 }
+
+export interface ContactPayload {
+  name?: string;
+  email?: string;
+  message: string;
+  /** Honeypot: legitimate clients leave this empty. */
+  website: string;
+  current_page: string;
+  scan_id?: string;
+}
+
+export type ContactResponse = z.infer<typeof contactResponseSchema>;
 
 async function request<T>(
   path: string,
@@ -85,12 +113,25 @@ async function toProblem(response: Response): Promise<Error> {
 }
 
 export const api = {
+  async contact(payload: ContactPayload, signal?: AbortSignal): Promise<ContactResponse> {
+    return request(`${API_BASE}/api/contact`, contactResponseSchema, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      signal,
+    });
+  },
+
   async health(signal?: AbortSignal): Promise<Health> {
     return request(`${API_BASE}/health`, healthSchema, { signal });
   },
 
   async capabilities(signal?: AbortSignal): Promise<Capabilities> {
     return request(`${API_V1}/capabilities`, capabilitiesSchema, { signal });
+  },
+
+  /** Aggregate scan count for this deployment. Aggregate only; no target data. */
+  async stats(signal?: AbortSignal): Promise<Stats> {
+    return request(`${API_V1}/stats`, statsResponseSchema, { signal });
   },
 
   async createScan(url: string, options?: ScanRequestOptions): Promise<ScanAccepted> {

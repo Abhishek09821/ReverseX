@@ -38,7 +38,7 @@ export function validateUrlInput(raw: string): UrlValidationResult {
   if (schemeOnly && !/^\d/.test(schemeOnly[2] ?? '')) {
     return {
       valid: false,
-      message: `WebLens analyzes http:// and https:// pages. "${schemeOnly[1]}:" is not supported.`,
+      message: `ReverseX analyzes http:// and https:// pages. "${schemeOnly[1]}:" is not supported.`,
     };
   }
 
@@ -54,7 +54,7 @@ export function validateUrlInput(raw: string): UrlValidationResult {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return {
       valid: false,
-      message: `WebLens analyzes http:// and https:// pages. "${parsed.protocol}" is not supported.`,
+      message: `ReverseX analyzes http:// and https:// pages. "${parsed.protocol}" is not supported.`,
     };
   }
   if (parsed.username || parsed.password) {
@@ -66,12 +66,12 @@ export function validateUrlInput(raw: string): UrlValidationResult {
     return { valid: false, message: 'The URL is missing a host name.' };
   }
   if (OBVIOUSLY_LOCAL.has(host) || host === '[::1]') {
-    return { valid: false, message: 'WebLens analyzes publicly reachable sites, not local ones.' };
+    return { valid: false, message: 'ReverseX analyzes publicly reachable sites, not local ones.' };
   }
   if (PRIVATE_PATTERNS.some((pattern) => pattern.test(host))) {
     return {
       valid: false,
-      message: 'That address is on a private network. WebLens only analyzes public sites.',
+      message: 'That address is on a private network. ReverseX only analyzes public sites.',
     };
   }
   if (!host.includes('.')) {

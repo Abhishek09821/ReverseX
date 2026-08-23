@@ -474,7 +474,7 @@ class BrowserEvidenceCollector:
             if not allowed and self._settings.respect_robots:
                 raise RobotsDisallowedError(
                     f"robots.txt at {robots_url} disallows {target.path} for this agent "
-                    f"({directive}). WebLens honours robots.txt."
+                    f"({directive}). ReverseX honours robots.txt."
                 )
             return observation
 

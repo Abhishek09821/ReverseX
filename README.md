@@ -1,4 +1,4 @@
-# WebLens
+# ReverseX
 
 Website Technical Intelligence Analyzer. Give it a public URL; it collects observable evidence from
 the site with a real browser plus HTTP/TLS probes, runs deterministic analyzers over that evidence,
@@ -6,7 +6,7 @@ and produces a technical report across design, technology, security, performance
 architecture, and network.
 
 **Detection is not done by AI.** Every asserted fact is derived from collected evidence and carries
-the provenance for that evidence. When something cannot be determined, WebLens says so instead of
+the provenance for that evidence. When something cannot be determined, ReverseX says so instead of
 guessing. The optional AI layer only explains findings that already exist, and any statement it
 produces that cannot be traced to a finding is dropped.
 
@@ -65,13 +65,13 @@ Reports (`design.md`, `techstack.md`, `security.md`, `performance.md`, `accessib
 `architecture.md`, `analysis.json`, `complete-report.zip`) are generated client-side from the stored
 result, so exports keep working with the backend stopped.
 
-## What WebLens does not do
+## What ReverseX does not do
 
 - No offensive security testing. Analysis is passive: it observes what a normal visit reveals. No
   exploitation, credential attacks, authentication bypass, brute force, fuzzing, or destructive tests.
 - No crawling. One URL per scan.
 - No authenticated, paywalled, or geo-restricted content.
-- No bypassing bot protection or consent walls. When a challenge page is detected, WebLens reports
+- No bypassing bot protection or consent walls. When a challenge page is detected, ReverseX reports
   restricted access rather than describing the interstitial as if it were the site.
 - No scores except the security posture score, which exists because it communicates observable
   configuration against [documented rules](docs/blueprint/11-security-scoring-methodology.md). It is

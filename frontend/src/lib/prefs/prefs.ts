@@ -7,13 +7,18 @@
  */
 import { sectionKeySchema, type SectionKey } from '@/types/analysis';
 
+/**
+ * Storage key.
+ *
+ * Deliberately unchanged by the ReverseX rename: it addresses preferences already written to real
+ * browsers, and renaming it would silently discard every existing user's settings for no gain.
+ */
 export const PREFS_KEY = 'weblens.prefs.v1';
 
-export type ThemePreference = 'system' | 'light' | 'dark';
+export type ThemePreference = 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
 
 export interface Prefs {
-  theme: ThemePreference;
   density: Density;
   default_section: SectionKey;
   show_evidence_by_default: boolean;
@@ -24,8 +29,10 @@ export interface Prefs {
   history_retention: number | null;
 }
 
+/** Every visit starts light; the theme is a per-visit choice, not a stored preference. */
+export const DEFAULT_THEME: ThemePreference = 'light';
+
 export const DEFAULT_PREFS: Prefs = {
-  theme: 'system',
   density: 'comfortable',
   default_section: 'design',
   show_evidence_by_default: false,
@@ -33,7 +40,6 @@ export const DEFAULT_PREFS: Prefs = {
   history_retention: null,
 };
 
-const THEMES: ThemePreference[] = ['system', 'light', 'dark'];
 const DENSITIES: Density[] = ['comfortable', 'compact'];
 
 /**
@@ -87,9 +93,6 @@ function coerce(input: unknown): Prefs {
   const defaultSection = sectionKeySchema.safeParse(raw.default_section);
 
   return {
-    theme: THEMES.includes(raw.theme as ThemePreference)
-      ? (raw.theme as ThemePreference)
-      : DEFAULT_PREFS.theme,
     density: DENSITIES.includes(raw.density as Density)
       ? (raw.density as Density)
       : DEFAULT_PREFS.density,
@@ -115,12 +118,8 @@ function coerce(input: unknown): Prefs {
   };
 }
 
-/** Apply the resolved theme to the document root. */
+/** Apply the theme to the document root. */
 export function applyTheme(theme: ThemePreference): void {
   if (typeof document === 'undefined') return;
-  const prefersDark =
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
-  const dark = theme === 'dark' || (theme === 'system' && prefersDark);
-  document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.classList.toggle('dark', theme === 'dark');
 }

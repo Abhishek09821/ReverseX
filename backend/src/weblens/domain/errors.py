@@ -2,7 +2,7 @@
 
 Two distinct things live here, and the difference matters:
 
-*Exceptions* (:class:`WebLensError` and subclasses) abort an operation and become HTTP
+*Exceptions* (:class:`ReverseXError` and subclasses) abort an operation and become HTTP
 problem responses.
 
 *Records* (:class:`ScanError`) are data attached to a result. An analyzer failing is not an
@@ -20,7 +20,7 @@ from weblens.domain.enums import ErrorCode
 from weblens.utils.timing import utc_now
 
 
-class WebLensError(Exception):
+class ReverseXError(Exception):
     """Base class for errors that abort an operation."""
 
     status_code: int = 500
@@ -33,62 +33,62 @@ class WebLensError(Exception):
         self.detail = detail
 
 
-class TargetValidationError(WebLensError):
+class TargetValidationError(ReverseXError):
     status_code = 400
     code = ErrorCode.INVALID_URL
     title = "The submitted URL could not be used"
 
 
-class TargetBlockedError(WebLensError):
-    """The target resolves somewhere WebLens must not connect to."""
+class TargetBlockedError(ReverseXError):
+    """The target resolves somewhere ReverseX must not connect to."""
 
     status_code = 403
     code = ErrorCode.BLOCKED_TARGET
     title = "Target is not publicly routable"
 
 
-class RobotsDisallowedError(WebLensError):
+class RobotsDisallowedError(ReverseXError):
     status_code = 403
     code = ErrorCode.ROBOTS_DISALLOWED
     title = "The site's robots.txt disallows this path"
 
 
-class DnsFailureError(WebLensError):
+class DnsFailureError(ReverseXError):
     status_code = 502
     code = ErrorCode.DNS_FAILURE
     title = "The host name could not be resolved"
     retryable = True
 
 
-class ConnectFailureError(WebLensError):
+class ConnectFailureError(ReverseXError):
     status_code = 502
     code = ErrorCode.CONNECT_FAILURE
     title = "The site could not be reached"
     retryable = True
 
 
-class TlsFailureError(WebLensError):
+class TlsFailureError(ReverseXError):
     status_code = 502
     code = ErrorCode.TLS_FAILURE
     title = "The TLS connection could not be established"
     retryable = True
 
 
-class NavigationTimeoutError(WebLensError):
+class NavigationTimeoutError(ReverseXError):
     status_code = 502
     code = ErrorCode.NAVIGATION_TIMEOUT
     title = "The site did not respond within the time budget"
     retryable = True
 
 
-class BrowserUnavailableError(WebLensError):
+class BrowserUnavailableError(ReverseXError):
     status_code = 503
     code = ErrorCode.BROWSER_UNAVAILABLE
     title = "The analysis browser is not available"
     retryable = True
 
 
-class RateLimitedError(WebLensError):
+class RateLimitedError(ReverseXError):
     status_code = 429
     code = ErrorCode.RATE_LIMITED
     title = "Too many concurrent scans"
@@ -99,20 +99,31 @@ class RateLimitedError(WebLensError):
         self.retry_after_seconds = retry_after_seconds
 
 
-class ScanNotFoundError(WebLensError):
+class ContactUnavailableError(ReverseXError):
+    status_code = 503
+    code = ErrorCode.CONTACT_UNAVAILABLE
+    title = "Support contact is temporarily unavailable"
+    retryable = True
+
+
+class ContactRateLimitedError(RateLimitedError):
+    title = "Too many support requests"
+
+
+class ScanNotFoundError(ReverseXError):
     status_code = 404
     code = ErrorCode.SCAN_NOT_FOUND
     title = "No such scan"
 
 
-class ScanInProgressError(WebLensError):
+class ScanInProgressError(ReverseXError):
     status_code = 409
     code = ErrorCode.SCAN_IN_PROGRESS
     title = "The scan has not finished yet"
     retryable = True
 
 
-class ResultExpiredError(WebLensError):
+class ResultExpiredError(ReverseXError):
     status_code = 410
     code = ErrorCode.RESULT_EXPIRED
     title = "The result is no longer buffered"
@@ -124,7 +135,7 @@ class ResultExpiredError(WebLensError):
         )
 
 
-class AiDisabledError(WebLensError):
+class AiDisabledError(ReverseXError):
     status_code = 501
     code = ErrorCode.AI_DISABLED
     title = "The AI explanation layer is not configured"
@@ -144,7 +155,7 @@ class ProblemDetail(BaseModel):
     retryable: bool = False
 
     @classmethod
-    def from_error(cls, error: WebLensError, instance: str | None = None) -> ProblemDetail:
+    def from_error(cls, error: ReverseXError, instance: str | None = None) -> ProblemDetail:
         slug = error.code.value.lower().replace("_", "-")
         return cls(
             type=f"about:weblens/problem/{slug}",

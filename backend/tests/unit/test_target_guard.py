@@ -32,7 +32,8 @@ RESOLUTIONS = {
 
 
 def make_guard(**overrides: object) -> TargetGuard:
-    settings = Settings(**overrides)  # type: ignore[arg-type]
+    # `_env_file=None`: the guard's behaviour must not depend on the developer's local dotenv.
+    settings = Settings(_env_file=None, **overrides)  # type: ignore[arg-type]
     return TargetGuard(settings, resolver=StubResolver(RESOLUTIONS))
 
 
@@ -156,7 +157,7 @@ async def test_dns_failure_is_reported_as_such() -> None:
 
 async def test_allow_private_targets_override() -> None:
     """The test-only escape hatch must work, and must be off by default."""
-    assert Settings().allow_private_targets is False
+    assert Settings(_env_file=None).allow_private_targets is False
     guard = make_guard(allow_private_targets=True)
     target = await guard.prepare("https://loopback.example/")
     assert target.resolved_ips == ("127.0.0.1",)

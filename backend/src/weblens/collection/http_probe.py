@@ -19,10 +19,10 @@ from weblens.collection.target import NormalizedTarget, TargetGuard
 from weblens.config import NEVER_CAPTURED_HEADERS, Settings
 from weblens.domain.errors import (
     ConnectFailureError,
+    ReverseXError,
     TargetBlockedError,
     TargetValidationError,
     TlsFailureError,
-    WebLensError,
 )
 from weblens.domain.observations import (
     CookieAttributes,
@@ -127,7 +127,7 @@ class HttpProbe:
             async with self._client() as client:
                 response = await self._request(client, "HEAD", url)
                 await response.aclose()
-        except WebLensError:
+        except ReverseXError:
             return None, None
 
         location = response.headers.get("location")
@@ -143,7 +143,7 @@ class HttpProbe:
                 response = await self._request(client, "GET", url)
                 body = await response.aread()
                 await response.aclose()
-        except WebLensError:
+        except ReverseXError:
             return None
         return response.status_code, body[:max_bytes].decode("utf-8", errors="replace")
 

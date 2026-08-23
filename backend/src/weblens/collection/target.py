@@ -1,6 +1,6 @@
 """Target normalization and the network guard.
 
-WebLens accepts a URL from an unauthenticated caller and fetches it, which makes this module
+ReverseX accepts a URL from an unauthenticated caller and fetches it, which makes this module
 the most security-relevant code in the backend. Two rules shape it:
 
 1. **Resolve first, then judge.** Host names are resolved to addresses before any connection,

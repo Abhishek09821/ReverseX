@@ -5,8 +5,11 @@
  * timer-driven animation standing in for progress: when nothing has changed, the UI shows the
  * current stage and an elapsed clock, which is the honest thing to show.
  *
- * The final step matters as much as the scan: the result is fetched, validated, written to
- * IndexedDB, and only then is the server-side copy released. The browser is the system of record.
+ * The final step matters as much as the scan: the result is fetched, validated, and written to
+ * IndexedDB before navigation. The browser remains the system of record. A result is released from
+ * the server immediately unless an evidence-quality gap and a configured provider make the
+ * user-initiated AI Intelligence fallback available; that temporary copy is released after the
+ * enhanced result is saved or by the server TTL.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -68,7 +71,10 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
         const result = await api.result(scanId);
         const screenshots = await decodeScreenshots(result);
         const outcome = await getRepository().persist(result, screenshots);
-        await api.deleteScan(scanId);
+        const retainForIntelligence = await shouldRetainForIntelligence(result);
+        if (!retainForIntelligence) {
+          await api.deleteScan(scanId);
+        }
 
         if (!mountedRef.current) return;
         setPhase({
@@ -217,6 +223,15 @@ function teardown(
   if (pollRef.current !== null) {
     window.clearInterval(pollRef.current);
     pollRef.current = null;
+  }
+}
+
+async function shouldRetainForIntelligence(result: AnalysisResult): Promise<boolean> {
+  if (!result.quality?.ai_fallback_available) return false;
+  try {
+    return (await api.intelligenceStatus(result.scan.scan_id)).available;
+  } catch {
+    return false;
   }
 }
 

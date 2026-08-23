@@ -30,7 +30,7 @@ from weblens.logging import get_logger
 logger = get_logger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a website reverse engineering intelligence analyst for WebLens. You analyze publicly \
+You are a website reverse engineering intelligence analyst for ReverseX. You analyze publicly \
 observable evidence collected from websites and produce structured technology verdicts.
 
 RULES:

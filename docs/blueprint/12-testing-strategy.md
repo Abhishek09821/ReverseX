@@ -123,7 +123,7 @@ Skipped unless `WEBLENS_LIVE=1`. Never in the default suite, never gating a comm
 | Contract parsing | zod accepts the committed fixture result; rejects a result with a mutated `status` enum; `ContractError` surfaces as a message, not a crash |
 | Report generation | each renderer against the fixture result: snapshot per file; unavailable section still produces a file containing its reason; evidence excerpts with `|` and backticks do not break tables; `analysis.json` is stable-ordered; zip contains the expected entry names; no `Set-Cookie` value appears in any output (a literal grep assertion) |
 | Section components | render `verified`/`inferred`/`not_detected`/`unable_to_verify` findings with the right labels; `confidence` never appears in the DOM (asserted); interpretations render inside the interpretation callout only |
-| Accessibility of WebLens itself | axe check on the main screen and dashboard; keyboard path from URL input to section nav |
+| Accessibility of ReverseX itself | axe check on the main screen and dashboard; keyboard path from URL input to section nav |
 
 The "confidence never appears" and "no cookie values in reports" tests are unusual but deliberate:
 they encode product principles as executable checks, which is the only way principles survive

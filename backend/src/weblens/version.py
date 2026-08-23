@@ -23,6 +23,6 @@ except PackageNotFoundError:  # running from a source tree without installation
     ENGINE_VERSION = "0.1.0"
 
 USER_AGENT = (
-    f"WebLens/{ENGINE_VERSION} (+https://github.com/weblens; passive website analyzer; "
+    f"ReverseX/{ENGINE_VERSION} (+https://github.com/weblens; passive website analyzer; "
     "respects robots.txt)"
 )

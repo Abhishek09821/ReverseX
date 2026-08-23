@@ -1,6 +1,6 @@
 """Real smoke test: scan a public website end-to-end and validate the result.
 
-This script starts the WebLens API server, submits a scan of a real public website,
+This script starts the ReverseX API server, submits a scan of a real public website,
 waits for it to complete, and validates that the structured result contains actual
 collected evidence across all sections.
 
@@ -23,7 +23,7 @@ TIMEOUT = 90  # seconds
 
 
 async def main() -> int:
-    print("=== WebLens Smoke Test ===")
+    print("=== ReverseX Smoke Test ===")
     print(f"Target: {TARGET_URL}")
     print()
 

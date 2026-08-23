@@ -115,20 +115,13 @@ def classify_source(domain: str) -> SourceType:
         return SourceType.GITHUB
     if "docs." in lower or "developer." in lower or "documentation" in lower:
         return SourceType.DOCUMENTATION
-    if any(
-        kw in lower
-        for kw in ("engineering", "techblog", "blog.google", "netflixtechblog")
-    ):
+    if any(kw in lower for kw in ("engineering", "techblog", "blog.google", "netflixtechblog")):
         return SourceType.OFFICIAL
     if any(
-        kw in lower
-        for kw in ("stackshare", "builtwith", "wappalyzer", "similartech", "w3techs")
+        kw in lower for kw in ("stackshare", "builtwith", "wappalyzer", "similartech", "w3techs")
     ):
         return SourceType.TECH_INTELLIGENCE
-    if any(
-        kw in lower
-        for kw in ("infoq", "smashingmagazine", "css-tricks", "web.dev", "dev.to")
-    ):
+    if any(kw in lower for kw in ("infoq", "smashingmagazine", "css-tricks", "web.dev", "dev.to")):
         return SourceType.TECH_PUBLICATION
 
     return SourceType.OTHER

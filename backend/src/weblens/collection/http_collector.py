@@ -20,7 +20,7 @@ from weblens.collection.static_html import parse_static_html
 from weblens.collection.target import NormalizedTarget, TargetGuard
 from weblens.config import Settings
 from weblens.domain.enums import ErrorCode, StageKey
-from weblens.domain.errors import RobotsDisallowedError, WebLensError
+from weblens.domain.errors import ReverseXError, RobotsDisallowedError
 from weblens.domain.evidence import RawEvidence
 from weblens.domain.observations import (
     DnsObservation,
@@ -162,7 +162,7 @@ class HttpEvidenceCollector:
             if not allowed and self._settings.respect_robots:
                 raise RobotsDisallowedError(
                     f"robots.txt at {robots_url} disallows {target.path} for this agent "
-                    f"({directive}). WebLens honours robots.txt."
+                    f"({directive}). ReverseX honours robots.txt."
                 )
             return observation
 
@@ -174,7 +174,7 @@ class HttpEvidenceCollector:
             watch = Stopwatch()
             try:
                 observation, redirect_chain = await self._probe.probe(target)
-            except WebLensError as exc:
+            except ReverseXError as exc:
                 await sink.stage_failed(StageKey.HTTP_PROBE, exc.code, exc.detail or exc.title)
                 raise
 

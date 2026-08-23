@@ -1,6 +1,10 @@
-/** Four-report PDF generation from the stored V2 result. */
-import { jsPDF } from 'jspdf';
-
+/**
+ * PDF export.
+ *
+ * The exported document has to stand on its own: it is read outside the app, often by someone who
+ * did not run the scan. So every chapter states what it covers and what it cannot establish, every
+ * verdict is spelled out in words, and the full finding set is printed rather than a summary.
+ */
 import { findingStatusLabel } from '@/lib/format/status';
 import { sectionLabel } from '@/lib/format/labels';
 import { formatDuration, formatTimestamp } from '@/lib/format/values';
@@ -14,527 +18,1021 @@ import {
   type AnalysisResult,
   type Finding,
   type FindingStatus,
+  type Section,
   type SectionKey,
 } from '@/types/analysis';
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const MARGIN = 14;
-const CONTENT_W = PAGE_W - MARGIN * 2;
-const PRIMARY: [number, number, number] = [41, 128, 185];
-const DARK: [number, number, number] = [30, 30, 30];
-const GRAY: [number, number, number] = [100, 100, 100];
-const LIGHT_GRAY: [number, number, number] = [210, 214, 220];
+import { COLOR, CONTENT_W, PAGE, Pdf, truncate, type Rgb } from './pdf-kit';
+import {
+  HOW_TO_READ_INTRO,
+  SECTION_DOCS,
+  STANDING_DISCLAIMER,
+  VERDICT_GLOSSARY,
+  evidenceQualityMeaning,
+} from './report-copy';
 
-interface Writer {
-  doc: jsPDF;
-  y: number;
-}
-
-type SectionRenderer = (writer: Writer, result: AnalysisResult) => void;
-
-const SECTION_RENDERERS: Record<SectionKey, SectionRenderer> = {
-  design: renderDesign,
-  technology: renderTechnology,
-  security: renderSecurity,
-  traffic: renderTraffic,
+const CHAPTER_INDEX: Record<SectionKey, string> = {
+  design: 'Report 01',
+  technology: 'Report 02',
+  security: 'Report 03',
+  traffic: 'Report 04',
 };
 
-function writer(doc: jsPDF): Writer {
-  return { doc, y: MARGIN };
+/* ------------------------------------------------------------------------------------ */
+/* Public API                                                                           */
+/* ------------------------------------------------------------------------------------ */
+
+export function generateSectionPdf(result: AnalysisResult, sectionKey: SectionKey): Blob {
+  const pdf = new Pdf();
+  renderCover(pdf, result, `${sectionLabel(sectionKey)} report`);
+  pdf.page();
+  renderHowToRead(pdf);
+  pdf.page();
+  renderSection(pdf, result, sectionKey);
+  renderClosing(pdf, result);
+  pdf.finish(result.target.host, `${sectionLabel(sectionKey)} report`);
+  return pdf.blob();
 }
 
-function ensurePage(output: Writer, needed = 18): void {
-  if (output.y + needed <= PAGE_H - MARGIN) return;
-  output.doc.addPage();
-  output.y = MARGIN;
-}
+export function generateCompletePdf(result: AnalysisResult): Blob {
+  const pdf = new Pdf();
+  renderCover(pdf, result, 'Complete analysis');
+  pdf.page();
+  renderExecutiveSummary(pdf, result);
+  pdf.page();
+  renderHowToRead(pdf);
+  pdf.page();
+  renderRunContext(pdf, result);
 
-function heading(output: Writer, text: string, level: 1 | 2 | 3 = 2): void {
-  ensurePage(output, level === 1 ? 18 : 14);
-  output.y += level === 1 ? 2 : 4;
-  output.doc.setFont('helvetica', 'bold');
-  output.doc.setFontSize(level === 1 ? 20 : level === 2 ? 14 : 11);
-  output.doc.setTextColor(...(level === 2 ? PRIMARY : DARK));
-  output.doc.text(text, MARGIN, output.y);
-  output.y += level === 1 ? 10 : level === 2 ? 8 : 6;
-  if (level === 2) {
-    output.doc.setDrawColor(...PRIMARY);
-    output.doc.setLineWidth(0.25);
-    output.doc.line(MARGIN, output.y - 3, MARGIN + CONTENT_W, output.y - 3);
+  for (const sectionKey of SECTION_KEYS) {
+    pdf.page();
+    renderSection(pdf, result, sectionKey);
   }
+
+  pdf.page();
+  renderClosing(pdf, result);
+  pdf.finish(result.target.host, 'Complete analysis');
+  return pdf.blob();
 }
 
-function text(output: Writer, value: string, muted = false, indent = 0): void {
-  output.doc.setFont('helvetica', 'normal');
-  output.doc.setFontSize(muted ? 8.5 : 9.5);
-  output.doc.setTextColor(...(muted ? GRAY : DARK));
-  const lines = output.doc.splitTextToSize(value, CONTENT_W - indent);
-  for (const line of lines) {
-    ensurePage(output, 6);
-    output.doc.text(line, MARGIN + indent, output.y);
-    output.y += muted ? 4 : 4.5;
-  }
-}
+/* ------------------------------------------------------------------------------------ */
+/* Cover                                                                                */
+/* ------------------------------------------------------------------------------------ */
 
-function bullet(output: Writer, value: string, muted = false): void {
-  ensurePage(output, 7);
-  output.doc.setFontSize(9);
-  output.doc.setTextColor(...(muted ? GRAY : DARK));
-  output.doc.text('•', MARGIN + 1, output.y);
-  text(output, value, muted, 5);
-}
-
-function keyValue(output: Writer, key: string, value: unknown): void {
-  if (value === null || value === undefined || value === '') return;
-  ensurePage(output, 7);
-  output.doc.setFontSize(9);
-  output.doc.setFont('helvetica', 'bold');
-  output.doc.setTextColor(...GRAY);
-  output.doc.text(key, MARGIN, output.y);
-  output.doc.setFont('helvetica', 'normal');
-  output.doc.setTextColor(...DARK);
-  const lines = output.doc.splitTextToSize(String(value), CONTENT_W - 42);
-  output.doc.text(lines, MARGIN + 42, output.y);
-  output.y += Math.max(5, lines.length * 4);
-}
-
-function separator(output: Writer): void {
-  output.y += 2;
-  output.doc.setDrawColor(...LIGHT_GRAY);
-  output.doc.line(MARGIN, output.y, MARGIN + CONTENT_W, output.y);
-  output.y += 5;
-}
-
-function statusBadge(output: Writer, status: FindingStatus, x: number, y: number): void {
-  const label = findingStatusLabel(status);
-  const color = statusColor(status);
-  output.doc.setFontSize(7);
-  const width = output.doc.getTextWidth(label) + 5;
-  output.doc.setFillColor(...color);
-  output.doc.roundedRect(x, y - 3.5, width, 5.5, 1, 1, 'F');
-  output.doc.setTextColor(255, 255, 255);
-  output.doc.text(label, x + 2.5, y);
-  output.doc.setTextColor(...DARK);
-}
-
-function statusColor(status: FindingStatus): [number, number, number] {
-  switch (status) {
-    case 'verified':
-      return [39, 150, 96];
-    case 'strongly_inferred':
-      return [45, 120, 175];
-    case 'inferred':
-      return [190, 132, 28];
-    case 'ai_inferred':
-      return [132, 74, 170];
-    case 'unable_to_verify':
-      return [180, 92, 35];
-    case 'not_detected':
-    case 'not_determinable':
-      return [112, 118, 126];
-  }
-}
-
-function sectionHeader(output: Writer, result: AnalysisResult, key: SectionKey): void {
-  const section = result.sections[key];
-  heading(output, sectionLabel(key), 1);
-  keyValue(output, 'Section status', section.meta.status.replace(/_/g, ' '));
-  keyValue(output, 'Reason', section.meta.unavailable_reason);
-  if (section.meta.status !== 'complete' && section.meta.status !== 'partial') {
-    text(output, 'No report claims were substituted for unavailable evidence.', true);
-  }
-  separator(output);
-}
-
-function renderCover(output: Writer, result: AnalysisResult): void {
+function renderCover(pdf: Pdf, result: AnalysisResult, kind: string): void {
+  const { doc } = pdf;
   const overview = buildOverview(result);
-  output.y = 42;
-  output.doc.setFont('helvetica', 'bold');
-  output.doc.setFontSize(28);
-  output.doc.setTextColor(...PRIMARY);
-  output.doc.text('WebLens', MARGIN, output.y);
-  output.y += 9;
-  output.doc.setFont('helvetica', 'normal');
-  output.doc.setFontSize(14);
-  output.doc.setTextColor(...GRAY);
-  output.doc.text('Website reverse-engineering report', MARGIN, output.y);
-  output.y += 20;
-  heading(output, result.target.host, 1);
-  text(output, result.target.final_url ?? result.target.normalized_url, true);
-  separator(output);
-  keyValue(output, 'Scan status', result.scan.status.replace(/_/g, ' '));
-  keyValue(output, 'Scanned', formatTimestamp(result.scan.finished_at ?? result.scan.created_at));
-  keyValue(output, 'Duration', formatDuration(result.scan.duration_ms));
-  keyValue(output, 'Engine', result.scan.engine_version);
-  keyValue(output, 'Schema', result.schema_version);
-  keyValue(output, 'Collection mode', result.scan.run_context?.collection_mode ?? 'unknown');
 
-  // Evidence Quality Gate
-  if (result.quality) {
-    heading(output, 'Evidence Quality', 2);
-    keyValue(output, 'Overall quality', result.quality.overall.toUpperCase());
-    keyValue(output, 'Overall score', `${result.quality.overall_score}/100`);
-    const sections = result.quality.sections;
-    for (const key of SECTION_KEYS) {
-      const sq = sections[key];
-      if (sq) {
-        keyValue(output, `  ${sectionLabel(key)}`, `${sq.quality.toUpperCase()} (${sq.score}/100) — ${sq.analyzers_completed}/${sq.analyzers_total} analyzers`);
-      }
-    }
-    if (result.quality.ai_fallback_available) {
-      text(output, `AI intelligence recommended for: ${result.quality.ai_fallback_sections.join(', ') || 'none'}`, true);
-    }
-    keyValue(output, 'Analysis mode', result.quality.ai_fallback_available ? 'Normal + AI available' : 'Normal evidence only');
+  // Full-bleed masthead.
+  pdf.fill(COLOR.ink, 0, 0, PAGE.width, 62);
+  pdf.fill(COLOR.primary, 0, 60, PAGE.width, 2);
+
+  const markSize = 15;
+  const hasMark = pdf.drawBrandMark(PAGE.margin, 15, markSize);
+  const textX = hasMark ? PAGE.margin + markSize + 6 : PAGE.margin;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(21);
+  doc.setTextColor(...COLOR.white);
+  doc.text('ReverseX', textX, 26);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(170, 180, 190);
+  doc.text('Website reverse-engineering intelligence', textX, 33);
+
+  doc.setFontSize(8);
+  doc.setTextColor(...COLOR.white);
+  doc.text(kind.toUpperCase(), PAGE.width - PAGE.margin, 26, { align: 'right' });
+  doc.setTextColor(170, 180, 190);
+  doc.text(
+    formatTimestamp(result.scan.finished_at ?? result.scan.created_at),
+    PAGE.width - PAGE.margin,
+    34,
+    { align: 'right' },
+  );
+
+  pdf.y = 82;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...COLOR.muted);
+  doc.text('ANALYSED TARGET', PAGE.margin, pdf.y);
+  pdf.y += 9;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(...COLOR.ink);
+  doc.text(truncate(doc, result.target.host, CONTENT_W, 24), PAGE.margin, pdf.y);
+  pdf.y += 8;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...COLOR.primary);
+  const url = result.target.final_url ?? result.target.normalized_url;
+  for (const line of doc.splitTextToSize(url, CONTENT_W) as string[]) {
+    doc.text(line, PAGE.margin, pdf.y);
+    pdf.y += 4.4;
   }
 
-  heading(output, 'Report summary', 2);
-  if (overview.technology.items.length > 0) {
-    bullet(output, `Technology: ${overview.technology.items.map((item) => item.name).join(', ')}`);
-    if (overview.technology.rendering) {
-      text(output, `  Rendering: ${overview.technology.rendering.value} (${findingStatusLabel(overview.technology.rendering.status)})`, true, 3);
-    }
-  } else {
-    bullet(output, 'Technology: no product was positively identified from observable signals.', true);
-  }
-  bullet(
-    output,
+  pdf.y += 8;
+  pdf.metrics([
+    {
+      label: 'Evidence quality',
+      value: result.quality ? `${result.quality.overall_score}` : '—',
+      hint: result.quality ? result.quality.overall.toUpperCase() : 'not assessed',
+      tone: COLOR.primary,
+    },
+    {
+      label: 'Security posture',
+      value: overview.security.percentage === null ? '—' : `${overview.security.percentage}%`,
+      hint: overview.security.bandPhrase ?? 'no score produced',
+      tone: COLOR.verified,
+    },
+    {
+      label: 'Findings',
+      value: String(countFindings(result)),
+      hint: `${overview.evidence.verified} verified`,
+      tone: COLOR.strong,
+    },
+    {
+      label: 'Analyzers',
+      value: `${overview.evidence.analyzersCompleted}/${overview.evidence.analyzersTotal}`,
+      hint: 'completed',
+      tone: COLOR.inferred,
+    },
+  ]);
+
+  pdf.y += 2;
+  pdf.h2('At a glance');
+  for (const line of glanceLines(result, overview)) pdf.bullet(line);
+
+  pdf.y = PAGE.height - 58;
+  pdf.note(STANDING_DISCLAIMER, COLOR.attention);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...COLOR.muted);
+  doc.text(
+    `Scan ${result.scan.scan_id} · engine ${result.scan.engine_version} · schema ${result.schema_version}`,
+    PAGE.margin,
+    PAGE.height - 14,
+  );
+}
+
+function glanceLines(result: AnalysisResult, overview: ReturnType<typeof buildOverview>): string[] {
+  const lines: string[] = [];
+
+  lines.push(
+    overview.technology.items.length > 0
+      ? `Technology: ${overview.technology.items.map((item) => item.name).join(', ')}.${
+          overview.technology.rendering
+            ? ` Rendering appears to be ${overview.technology.rendering.value}.`
+            : ''
+        }`
+      : 'Technology: no product was positively identified from observable signals. Nothing was guessed in its place.',
+  );
+
+  lines.push(
     overview.security.percentage === null
-      ? 'Security: passive posture score unavailable.'
-      : `Security: ${overview.security.percentage}% — ${overview.security.bandPhrase ?? 'band unavailable'}. This is not proof the site is secure.`,
-  );
-  bullet(
-    output,
-    overview.traffic.estimates.length > 0
-      ? `Traffic: ${overview.traffic.estimates.map((estimate) => `${estimate.name} ${estimate.value}`).join(', ')}`
-      : `Traffic: ${overview.traffic.unavailableReason ?? 'no estimate available'}`,
-  );
-  bullet(
-    output,
-    `Evidence: ${overview.evidence.verified} verified, ${overview.evidence.stronglyInferred} strongly inferred, ${overview.evidence.inferred} inferred, ${overview.evidence.aiInferred} AI hypotheses.`,
+      ? 'Security: no observable posture score was produced for this scan.'
+      : `Security: ${overview.security.percentage}% observable posture — ${overview.security.bandPhrase ?? 'band unavailable'}. This measures visible configuration only, and is not proof the site is secure.`,
   );
 
-  // Design summary
-  if (overview.design.fonts.length > 0 || overview.design.observations.length > 0) {
-    bullet(output, `Design: ${[...overview.design.fonts.slice(0, 3), ...overview.design.observations].join(', ')}`);
+  const design = buildDesignPresentation(result);
+  if (design.typography.loadedFonts.length > 0 || design.colors.available) {
+    lines.push(
+      `Design: ${[
+        design.typography.loadedFonts.length > 0
+          ? `${design.typography.loadedFonts.slice(0, 3).join(', ')} typography`
+          : null,
+        design.colors.backgrounds.length > 0
+          ? `${design.colors.backgrounds.length} background colours observed`
+          : null,
+        design.layout.hasResponsive ? `${design.layout.breakpoints.length} breakpoints` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')}.`,
+    );
+  }
+
+  lines.push(
+    overview.traffic.estimates.length > 0
+      ? `Traffic: ${overview.traffic.estimates.map((e) => `${e.name} ${e.value}`).join(', ')}.`
+      : `Traffic: ${overview.traffic.unavailableReason ?? 'no public estimate was available'}.`,
+  );
+
+  lines.push(
+    `Evidence mix: ${overview.evidence.verified} verified, ${overview.evidence.stronglyInferred} strongly supported, ${overview.evidence.inferred} likely, ${overview.evidence.aiInferred} AI hypotheses, ${overview.evidence.unknown} absent or not determinable.`,
+  );
+
+  if (result.errors.length > 0) {
+    lines.push(
+      `${result.errors.length} error${result.errors.length === 1 ? '' : 's'} occurred during collection. Affected chapters state what could not be produced.`,
+    );
+  }
+
+  return lines;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* Front matter                                                                         */
+/* ------------------------------------------------------------------------------------ */
+
+function renderExecutiveSummary(pdf: Pdf, result: AnalysisResult): void {
+  pdf.chapterBanner('Summary', 'Executive summary', 'What this analysis established, by chapter');
+
+  pdf.para(
+    `This document reports what a passive analysis of ${result.target.host} could observe. It is organised as four independent reports — Design, Tech Stack, Security and Traffic — each built only from evidence collected during a single visit to one public URL.`,
+    { lead: true },
+  );
+
+  if (result.quality) {
+    pdf.h2('Evidence completeness');
+    pdf.para(
+      `Overall evidence quality for this scan was ${result.quality.overall.toUpperCase()} (${result.quality.overall_score}/100). ${evidenceQualityMeaning(result.quality.overall)}`,
+    );
+    for (const key of SECTION_KEYS) {
+      const sq = result.quality.sections[key];
+      if (!sq) continue;
+      pdf.meter(
+        sectionLabel(key),
+        sq.score,
+        `${sq.quality.toUpperCase()} · ${sq.analyzers_completed}/${sq.analyzers_total} analyzers · ${sq.findings_verified} verified, ${sq.findings_inferred} inferred`,
+        qualityTone(sq.quality),
+      );
+    }
+    if (result.quality.ai_fallback_available && result.quality.ai_fallback_sections.length > 0) {
+      pdf.note(
+        `AI Intelligence was recommended for: ${result.quality.ai_fallback_sections
+          .map((key) => sectionLabel(key as SectionKey))
+          .join(', ')}. Any AI-derived conclusion in this document is labelled "AI inferred" and reported separately from deterministic findings.`,
+        COLOR.ai,
+      );
+    }
+  }
+
+  pdf.h2('Chapter outline');
+  pdf.grid(
+    ['Chapter', 'Covers', 'Status', 'Findings'],
+    SECTION_KEYS.map((key) => [
+      sectionLabel(key),
+      SECTION_DOCS[key].tagline,
+      result.sections[key].meta.status.replace(/_/g, ' '),
+      result.sections[key].findings.length,
+    ]),
+    { 0: { cellWidth: 26, fontStyle: 'bold' }, 2: { cellWidth: 26 }, 3: { cellWidth: 18 } },
+  );
+
+  if (result.limitations.length > 0) {
+    pdf.h2('Scope of this scan');
+    for (const limitation of result.limitations) pdf.bullet(limitation, { muted: true });
   }
 }
 
-function renderDesign(output: Writer, result: AnalysisResult): void {
-  sectionHeader(output, result, 'design');
-  const design = buildDesignPresentation(result);
+function renderHowToRead(pdf: Pdf): void {
+  pdf.chapterBanner('Reference', 'How to read this report', 'The verdict vocabulary, in full');
+  pdf.para(HOW_TO_READ_INTRO, { lead: true });
 
-  renderSectionQuality(output, result, 'design');
-  text(output, design.summary);
-  output.y += 2;
+  pdf.h2('Verdicts');
+  for (const entry of VERDICT_GLOSSARY) {
+    pdf.findingHeading(entry.label, entry.label, statusColor(entry.status));
+    pdf.para(entry.meaning, { muted: true });
+  }
 
-  heading(output, 'Page structure', 2);
-  renderFindings(output, result.sections.design.findings.filter((finding) => ['document', 'structure'].includes(finding.category)));
+  pdf.h2('Two distinctions that matter');
+  pdf.bullet(
+    '"Not detected" is not "not used". Server-rendered, self-hosted, proxied and bundled technologies frequently leave no signature a public visitor can see. The finding describes the evidence, not the site.',
+  );
+  pdf.bullet(
+    '"Not publicly determinable" is a refusal, not a gap. It marks properties — databases and internal services being the common case — that cannot honestly be established from outside, so no guess is offered.',
+  );
 
-  heading(output, 'Layout system and spacing', 2);
-  if (design.layout.displayTypes.length > 0) keyValue(output, 'Layout methods', design.layout.displayTypes.join(', '));
-  if (design.layout.gaps.length > 0) keyValue(output, 'Gap values', design.layout.gaps.join(', '));
-  if (design.layout.borderRadii.length > 0) keyValue(output, 'Border radii', design.layout.borderRadii.join(', '));
-  if (design.layout.shadows.length > 0) keyValue(output, 'Shadows', design.layout.shadows.join(', '));
-  if (!design.layout.available) text(output, 'No layout values were available.', true);
-
-  heading(output, 'Responsive behavior', 2);
-  if (design.layout.breakpoints.length > 0) keyValue(output, 'Breakpoints', design.layout.breakpoints.join(', '));
-  if (design.layout.hasOverflow) keyValue(output, 'Overflow widths', design.layout.overflowWidths.join(', '));
-  if (design.layout.breakpoints.length === 0 && !design.layout.hasOverflow) text(output, 'No separate responsive observation was available.', true);
-
-  heading(output, 'Typography', 2);
-  keyValue(output, 'Loaded fonts', design.typography.loadedFonts.join(', '));
-  keyValue(output, 'Font families', design.typography.fontFamilies.join(', '));
-  keyValue(output, 'Weights', design.typography.weights.join(', '));
-  keyValue(output, 'Type scale', design.typography.sizes.join(', '));
-  keyValue(output, 'Line heights', design.typography.lineHeights.join(', '));
-
-  heading(output, 'Color system', 2);
-  keyValue(output, 'Background colors', design.colors.backgrounds.map((color) => color.hex ?? color.value).join(', '));
-  keyValue(output, 'Text colors', design.colors.texts.map((color) => color.hex ?? color.value).join(', '));
-
-  heading(output, 'Components and patterns', 2);
-  renderFindings(output, result.sections.design.findings.filter((finding) => finding.category === 'forms'));
-
-  heading(output, 'Media', 2);
-  keyValue(output, 'Images', design.media.imageCount);
-  keyValue(output, 'SVG elements', design.media.svgCount);
-  keyValue(output, 'Videos', design.media.videoCount);
-  keyValue(output, 'Formats', design.media.formats.join(', '));
-
-  heading(output, 'Motion', 2);
-  keyValue(output, 'Transitions', design.motion.transitions.join(', '));
-  keyValue(output, 'Animations', design.motion.animations.join(', '));
-  keyValue(output, 'Keyframe definitions', design.motion.keyframeCount);
-
-  // AI Findings
-  renderAiFindings(output, result.sections.design.findings);
-
-  renderLimitations(output, result.sections.design.meta.limitations);
+  pdf.h2('Scores');
+  pdf.para(
+    'Security is the only report with a score, because presence and quality of observable defensive configuration is a genuinely measurable thing. Design, Tech Stack and Traffic are deliberately unscored: any number attached to them would be an invented weighting presented as a measurement.',
+  );
 }
 
-function renderTechnology(output: Writer, result: AnalysisResult): void {
-  sectionHeader(output, result, 'technology');
+function renderRunContext(pdf: Pdf, result: AnalysisResult): void {
+  pdf.chapterBanner('Method', 'Collection conditions', 'The exact conditions every measurement was taken under');
+  pdf.para(
+    'Measurements are only meaningful alongside the conditions that produced them. A different viewport, network or wait strategy would produce a different result, so the run is recorded here in full.',
+    { lead: true },
+  );
+
+  const context = result.scan.run_context;
+  pdf.h2('Scan');
+  pdf.fields([
+    ['Requested URL', result.target.requested_url],
+    ['Normalized URL', result.target.normalized_url],
+    ['Final URL', result.target.final_url],
+    ['HTTP status', result.target.http_status],
+    ['Scan id', result.scan.scan_id],
+    ['Scan status', result.scan.status.replace(/_/g, ' ')],
+    ['Started', formatTimestamp(result.scan.started_at)],
+    ['Finished', formatTimestamp(result.scan.finished_at)],
+    ['Duration', formatDuration(result.scan.duration_ms)],
+    ['Engine version', result.scan.engine_version],
+    ['Schema version', result.schema_version],
+  ]);
+
+  pdf.h2('Environment');
+  if (!context) {
+    pdf.para(
+      'Run context was not recorded for this scan, so the measurements below cannot be reproduced exactly.',
+      { muted: true },
+    );
+  } else {
+    pdf.fields([
+      ['Collection mode', context.collection_mode],
+      [
+        'Browser',
+        context.browser_name
+          ? `${context.browser_name} ${context.browser_version ?? ''}`.trim()
+          : 'not used',
+      ],
+      [
+        'Viewport',
+        `${context.viewport.width}×${context.viewport.height} @ ${context.device_scale_factor}x`,
+      ],
+      ['Wait strategy', context.wait_strategy],
+      ['Settle reached', context.settle_reached ?? 'not applicable'],
+      ['Network throttling', context.network_throttling],
+      ['CPU throttling', context.cpu_throttling],
+      ['Locale / timezone', `${context.locale} / ${context.timezone}`],
+      ['User agent', context.user_agent],
+    ]);
+  }
+
+  if (result.errors.length > 0) {
+    pdf.h2('Collection errors');
+    pdf.grid(
+      ['Subject', 'Scope', 'Code', 'Message'],
+      result.errors.map((error) => [error.subject, error.scope, error.code, error.message]),
+      { 2: { cellWidth: 30 } },
+    );
+  }
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* Section chapters                                                                     */
+/* ------------------------------------------------------------------------------------ */
+
+function renderSection(pdf: Pdf, result: AnalysisResult, key: SectionKey): void {
+  const section = result.sections[key];
+  const docs = SECTION_DOCS[key];
+
+  pdf.chapterBanner(CHAPTER_INDEX[key], sectionLabel(key), docs.tagline);
+
+  // Chapter framing, which is what the old export was missing entirely.
+  pdf.h2('What this report covers');
+  pdf.para(docs.covers, { lead: true });
+
+  pdf.h2('How to read it');
+  pdf.para(docs.howToRead);
+
+  pdf.h2('What it cannot establish');
+  pdf.note(docs.cannot, COLOR.attention);
+
+  renderSectionStatus(pdf, result, key);
+
+  if (!isRenderable(section)) {
+    pdf.h2('No findings available');
+    pdf.para(
+      section.meta.status === 'not_implemented'
+        ? 'No analyzer for this report ships in this build of ReverseX. Nothing about the target was inferred in its place.'
+        : (section.meta.unavailable_reason ?? 'This report could not be produced for this scan.'),
+    );
+    renderAnalyzers(pdf, section);
+    return;
+  }
+
+  switch (key) {
+    case 'design':
+      renderDesignBody(pdf, result);
+      break;
+    case 'technology':
+      renderTechnologyBody(pdf, result);
+      break;
+    case 'security':
+      renderSecurityBody(pdf, result);
+      break;
+    case 'traffic':
+      renderTrafficBody(pdf, result);
+      break;
+  }
+
+  renderAllFindings(pdf, section);
+  renderAiFindings(pdf, section);
+  renderInterpretations(pdf, section);
+  renderAnalyzers(pdf, section);
+  renderLimitations(pdf, section);
+}
+
+function renderSectionStatus(pdf: Pdf, result: AnalysisResult, key: SectionKey): void {
+  const section = result.sections[key];
+  const sq = result.quality?.sections[key];
+
+  pdf.h2('Evidence for this report');
+  pdf.metrics([
+    { label: 'Status', value: section.meta.status.replace(/_/g, ' '), tone: COLOR.strong },
+    { label: 'Findings', value: String(section.findings.length), tone: COLOR.primary },
+    {
+      label: 'Analyzers',
+      value: `${section.meta.analyzers.filter((a) => a.status === 'completed').length}/${section.meta.analyzers.length}`,
+      tone: COLOR.inferred,
+    },
+    {
+      label: 'Quality',
+      value: sq ? `${sq.score}` : '—',
+      hint: sq ? sq.quality.toUpperCase() : 'not assessed',
+      tone: sq ? qualityTone(sq.quality) : COLOR.neutral,
+    },
+  ]);
+
+  if (sq) {
+    pdf.para(evidenceQualityMeaning(sq.quality), { muted: true });
+    if (sq.ai_fallback_recommended && sq.reason) pdf.para(sq.reason, { muted: true });
+  }
+  if (section.meta.unavailable_reason) {
+    pdf.para(`Reason: ${section.meta.unavailable_reason}`, { muted: true });
+  }
+}
+
+function renderDesignBody(pdf: Pdf, result: AnalysisResult): void {
+  const design = buildDesignPresentation(result);
+  const findings = result.sections.design.findings;
+
+  pdf.h2('Summary');
+  pdf.para(design.summary);
+
+  pdf.h2('Page structure');
+  renderFindingGroup(
+    pdf,
+    findings.filter((f) => ['document', 'structure'].includes(f.category)),
+  );
+
+  pdf.h2('Layout system and spacing');
+  pdf.para(
+    'Layout methods are the CSS display modes actually computed on rendered elements. Gap, radius and shadow values are the distinct values observed, which makes them a usable starting palette for reimplementation.',
+    { muted: true },
+  );
+  pdf.fields([
+    ['Layout methods', design.layout.displayTypes.join(', ')],
+    ['Gap values', design.layout.gaps.join(', ')],
+    ['Border radii', design.layout.borderRadii.join(', ')],
+    ['Shadows', design.layout.shadows.join(', ')],
+  ]);
+  if (!design.layout.available) pdf.para('No layout values were collected.', { muted: true });
+
+  pdf.h2('Responsive behaviour');
+  pdf.fields([
+    ['Breakpoints', design.layout.breakpoints.join(', ')],
+    ['Horizontal overflow', design.layout.hasOverflow ? 'observed' : 'none observed'],
+    ['Overflow widths', design.layout.overflowWidths.join(', ')],
+  ]);
+  if (design.layout.breakpoints.length === 0) {
+    pdf.para(
+      'No media-query breakpoints were observed. The page may still be fluid, or its breakpoints may live in stylesheets that were not parsed.',
+      { muted: true },
+    );
+  }
+
+  pdf.h2('Typography');
+  pdf.fields([
+    ['Loaded fonts', design.typography.loadedFonts.join(', ')],
+    ['Font families', design.typography.fontFamilies.join(', ')],
+    ['Weights', design.typography.weights.join(', ')],
+    ['Type scale', design.typography.sizes.join(', ')],
+    ['Line heights', design.typography.lineHeights.join(', ')],
+  ]);
+
+  pdf.h2('Colour system');
+  renderSwatches(pdf, 'Background colours', design.colors.backgrounds);
+  renderSwatches(pdf, 'Text colours', design.colors.texts);
+  if (!design.colors.available) pdf.para('No colour values were collected.', { muted: true });
+
+  pdf.h2('Components and patterns');
+  renderFindingGroup(
+    pdf,
+    findings.filter(
+      (f) =>
+        f.category === 'forms' ||
+        f.id === 'design.layout:border-radius' ||
+        f.id === 'design.layout:box-shadows',
+    ),
+  );
+
+  pdf.h2('Media');
+  pdf.fields([
+    ['Images', design.media.imageCount],
+    ['Lazy-loaded images', design.media.lazyLoaded],
+    ['SVG elements', design.media.svgCount],
+    ['Videos', design.media.videoCount],
+    ['Picture elements', design.media.pictureCount],
+    ['Formats', design.media.formats.join(', ')],
+  ]);
+
+  pdf.h2('Motion');
+  pdf.fields([
+    ['Transitions', design.motion.transitions.join(', ')],
+    ['Animations', design.motion.animations.join(', ')],
+    ['Keyframe definitions', design.motion.keyframeCount],
+  ]);
+  if (!design.motion.available) {
+    pdf.para('No CSS transitions or animations were observed.', { muted: true });
+  }
+}
+
+/** Colour rows drawn as actual swatches, because a hex string is not a colour. */
+function renderSwatches(
+  pdf: Pdf,
+  label: string,
+  colors: { value: string; hex: string | null }[],
+): void {
+  if (colors.length === 0) return;
+  pdf.h3(label);
+
+  const size = 9;
+  const gap = 2.4;
+  const perRow = Math.floor((CONTENT_W + gap) / (size + gap));
+
+  colors.forEach((color, index) => {
+    const column = index % perRow;
+    if (column === 0) pdf.need(size + 9);
+    const x = PAGE.margin + column * (size + gap);
+    const rgb = hexToRgb(color.hex ?? color.value);
+
+    pdf.doc.setFillColor(...(rgb ?? COLOR.surface));
+    pdf.doc.setDrawColor(...COLOR.hairline);
+    pdf.doc.setLineWidth(0.2);
+    pdf.doc.roundedRect(x, pdf.y, size, size, 1, 1, 'FD');
+
+    pdf.doc.setFont('helvetica', 'normal');
+    pdf.doc.setFontSize(5.2);
+    pdf.doc.setTextColor(...COLOR.muted);
+    pdf.doc.text(truncate(pdf.doc, (color.hex ?? color.value).replace('#', ''), size, 5.2), x, pdf.y + size + 3);
+
+    if (column === perRow - 1 || index === colors.length - 1) pdf.y += size + 8;
+  });
+  pdf.y += 1;
+}
+
+function renderTechnologyBody(pdf: Pdf, result: AnalysisResult): void {
   const presentation = buildTechPresentation(result);
 
-  // Evidence quality for this section
-  renderSectionQuality(output, result, 'technology');
-
   if (presentation.categories.length === 0) {
-    text(output, 'No technology was positively identified from observable signals. Invisible backend or bundled technology was not guessed.', true);
+    pdf.h2('Identified technologies');
+    pdf.para(
+      'No technology was positively identified from observable signals. Invisible backend or bundled technology was not guessed in its place.',
+      { muted: true },
+    );
   }
+
   for (const category of presentation.categories) {
-    heading(output, category.title, 2);
+    pdf.h2(category.title);
     for (const item of category.items) {
-      ensurePage(output, 18);
-      output.doc.setFont('helvetica', 'bold');
-      output.doc.setFontSize(10);
-      output.doc.setTextColor(...DARK);
-      output.doc.text(item.name, MARGIN, output.y);
-      statusBadge(output, item.status, Math.min(MARGIN + output.doc.getTextWidth(item.name) + 4, 160), output.y);
-      output.y += 5;
-      if (item.description) text(output, item.description, true);
-      if (item.signals.length > 0) text(output, `Evidence: ${item.signals.join(' ')}`, true);
-      if (item.limitations.length > 0) text(output, `Limitations: ${item.limitations.join(' ')}`, true);
-      output.y += 2;
+      pdf.findingHeading(item.name, findingStatusLabel(item.status), statusColor(item.status));
+      if (item.description) pdf.para(item.description);
+      if (item.signals.length > 0) pdf.para(`Evidence: ${item.signals.join(' ')}`, { muted: true });
+      if (item.limitations.length > 0) {
+        pdf.para(`Limitations: ${item.limitations.join(' ')}`, { muted: true });
+      }
+      pdf.space(1);
     }
   }
 
-  heading(output, 'Architecture hypothesis', 2);
+  pdf.h2('Architecture hypotheses');
   if (presentation.hypotheses.length === 0) {
-    text(output, 'No AI architecture hypothesis was produced.', true);
-  }
-  for (const hypothesis of presentation.hypotheses) {
-    heading(output, hypothesis.hypothesis, 3);
-    statusBadge(output, 'ai_inferred', MARGIN, output.y);
-    output.y += 6;
-    text(output, 'AI hypothesis — not a verified detection.', true);
-    if (hypothesis.reasoning) {
-      text(output, `Reasoning: ${hypothesis.reasoning}`);
-    }
-    if (hypothesis.basis.length > 0) {
-      text(output, 'Evidence basis:', true);
-      for (const basis of hypothesis.basis) bullet(output, basis.url ? `${basis.label} (${basis.url})` : basis.label, true);
-    }
-    for (const limitation of hypothesis.limitations) bullet(output, `Limitation: ${limitation}`, true);
-    output.y += 3;
-  }
-
-  heading(output, 'Unknown / not publicly determinable', 2);
-  if (presentation.unknowns.length === 0) {
-    text(output, 'No explicit unknowns were reported.', true);
+    pdf.para(
+      'No AI architecture hypothesis was produced for this scan. Deterministic findings above stand on their own.',
+      { muted: true },
+    );
   } else {
-    text(output, 'These properties cannot be determined from public observation:', true);
-    for (const unknown of presentation.unknowns) {
-      bullet(output, `${unknown.name} — ${findingStatusLabel(unknown.status)}: ${unknown.reason}`);
-      if (unknown.limitations.length > 0) text(output, `  ${unknown.limitations.join('; ')}`, true, 5);
+    pdf.para(
+      'The statements below are hypotheses from the optional AI layer, not detections. Each cites the evidence it was built from.',
+      { muted: true },
+    );
+    for (const hypothesis of presentation.hypotheses) {
+      pdf.findingHeading(hypothesis.hypothesis, 'AI inferred', COLOR.ai);
+      if (hypothesis.reasoning) pdf.para(hypothesis.reasoning);
+      for (const basis of hypothesis.basis) {
+        pdf.bullet(basis.url ? `${basis.label} — ${basis.url}` : basis.label, { muted: true });
+      }
+      for (const limitation of hypothesis.limitations) {
+        pdf.bullet(`Limitation: ${limitation}`, { muted: true });
+      }
+      pdf.space(1);
     }
   }
 
-  // AI Findings
-  renderAiFindings(output, result.sections.technology.findings);
+  pdf.h2('Verdict distribution');
+  const findings = result.sections.technology.findings;
+  pdf.grid(
+    ['Verdict', 'Count', 'What it means here'],
+    VERDICT_GLOSSARY.map((entry) => [
+      entry.label,
+      findings.filter((f) => f.status === entry.status).length,
+      entry.meaning,
+    ]),
+    { 0: { cellWidth: 36, fontStyle: 'bold' }, 1: { cellWidth: 16, halign: 'center' } },
+  );
 
-  renderLimitations(output, result.sections.technology.meta.limitations);
+  pdf.h2('Not publicly determinable');
+  if (presentation.unknowns.length === 0) {
+    pdf.para('No explicit unknowns were reported for this section.', { muted: true });
+  } else {
+    pdf.para(
+      'These properties cannot reasonably be established from outside the site, so no value is offered.',
+      { muted: true },
+    );
+    pdf.grid(
+      ['Property', 'Verdict', 'Reason'],
+      presentation.unknowns.map((unknown) => [
+        unknown.name,
+        findingStatusLabel(unknown.status),
+        [unknown.reason, ...unknown.limitations].filter(Boolean).join(' '),
+      ]),
+      { 0: { cellWidth: 40, fontStyle: 'bold' }, 1: { cellWidth: 32 } },
+    );
+  }
+
+  const sources = [
+    ...new Set(
+      findings
+        .flatMap((f) => f.evidence)
+        .filter((e) => e.kind === 'research_source')
+        .map((e) => e.excerpt ?? e.source)
+        .filter(Boolean),
+    ),
+  ];
+  pdf.h2('Research sources');
+  if (sources.length === 0) {
+    pdf.para('No external research sources were consulted for this scan.', { muted: true });
+  } else {
+    for (const source of sources.slice(0, 20)) pdf.bullet(String(source), { muted: true });
+  }
 }
 
-function renderSecurity(output: Writer, result: AnalysisResult): void {
-  sectionHeader(output, result, 'security');
+function renderSecurityBody(pdf: Pdf, result: AnalysisResult): void {
   const section = result.sections.security;
   const parsed = securityPayloadSchema.safeParse(section.data);
   const score = parsed.success ? parsed.data.score : null;
 
-  renderSectionQuality(output, result, 'security');
-
-  heading(output, 'Observable Security Posture', 2);
-  if (score) {
-    keyValue(output, 'Score', `${score.percentage}%`);
-    keyValue(output, 'Band', score.band_phrase);
-    keyValue(output, 'Applicable points', `${score.points_awarded} / ${score.points_applicable}`);
-    keyValue(output, 'Methodology', score.methodology_version);
-    output.y += 2;
-    text(output, score.disclaimer, true);
-    text(output, 'This passive score is not proof that the website is secure.', true);
-
-    heading(output, 'Security rules', 2);
-    for (const rule of score.rules) {
-      ensurePage(output, 10);
-      bullet(output, `${rule.id} ${rule.title} — ${rule.outcome}: ${rule.rationale}`);
-      if (rule.recommendation) text(output, `  Recommendation: ${rule.recommendation}`, true, 5);
-    }
+  pdf.h2('Observable posture');
+  if (!score) {
+    pdf.para(
+      'No posture score was produced for this scan. Individual observations remain available below.',
+      { muted: true },
+    );
   } else {
-    text(output, 'No posture score was produced; findings remain available below.', true);
+    pdf.meter(
+      'Observable security posture',
+      score.percentage,
+      `${score.points_awarded} of ${score.points_applicable} applicable points · ${score.band_phrase} · methodology ${score.methodology_version}`,
+      COLOR.verified,
+    );
+    pdf.note(score.disclaimer, COLOR.attention);
+
+    pdf.h2('Rule-by-rule results');
+    pdf.para(
+      'Every rule that contributed to the score is listed with its outcome and weight. Rules that could not be evaluated are excluded from both the awarded and the applicable totals rather than counted as failures.',
+      { muted: true },
+    );
+    pdf.grid(
+      ['Rule', 'Category', 'Outcome', 'Points', 'Rationale'],
+      [...score.rules]
+        .sort((a, b) => b.weight - a.weight)
+        .map((rule) => [
+          rule.title,
+          rule.category,
+          rule.outcome,
+          `${rule.awarded}/${rule.weight}`,
+          [rule.rationale, rule.recommendation ? `Recommendation: ${rule.recommendation}` : '']
+            .filter(Boolean)
+            .join(' '),
+        ]),
+      {
+        0: { cellWidth: 34, fontStyle: 'bold' },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 14, halign: 'center' },
+      },
+    );
   }
 
-  heading(output, 'Passive observations', 2);
-  renderFindings(output, section.findings.filter((f) => f.status !== 'ai_inferred'));
+  const groups: [string, string][] = [
+    ['security.tls', 'Transport security'],
+    ['security.headers', 'Response headers'],
+    ['security.cookies', 'Cookies'],
+    ['security.mixed_content', 'Mixed content'],
+    ['security.exposure', 'Technology disclosure'],
+    ['security.third_party', 'Third-party origins'],
+  ];
 
-  // AI Findings
-  renderAiFindings(output, section.findings);
-
-  renderLimitations(output, section.meta.limitations);
+  for (const [source, title] of groups) {
+    const findings = section.findings.filter(
+      (f) => f.source === source && f.status !== 'ai_inferred',
+    );
+    if (findings.length === 0) continue;
+    pdf.h2(title);
+    renderFindingGroup(pdf, findings);
+  }
 }
 
-function renderTraffic(output: Writer, result: AnalysisResult): void {
-  sectionHeader(output, result, 'traffic');
+function renderTrafficBody(pdf: Pdf, result: AnalysisResult): void {
   const section = result.sections.traffic;
   const parsed = trafficPayloadSchema.safeParse(section.data);
-  const provider = parsed.success ? parsed.data : null;
-  const popularity = section.findings.filter((finding) => finding.category === 'popularity');
-  const signals = section.findings.filter((finding) => finding.category === 'analytics');
+  const payload = parsed.success ? parsed.data : null;
+  const popularity = section.findings.filter((f) => f.category === 'popularity');
+  const analytics = section.findings.filter((f) => f.category === 'analytics');
   const hasEstimate = popularity.some(
-    (finding) =>
-      (finding.status === 'verified' || finding.status === 'strongly_inferred' || finding.status === 'inferred') &&
-      (finding.value !== null || finding.values.length > 0),
+    (f) =>
+      ['verified', 'strongly_inferred', 'inferred'].includes(f.status) &&
+      (f.value !== null || f.values.length > 0),
   );
 
-  renderSectionQuality(output, result, 'traffic');
+  pdf.h2('Popularity verdict');
+  pdf.fields([
+    ['Data provider', payload?.provider_name ?? 'none configured'],
+    ['Provider available', payload?.provider_available ? 'yes' : 'no'],
+  ]);
 
-  heading(output, 'Popularity and traffic estimates', 2);
-  keyValue(output, 'Provider', provider?.provider_name ?? 'none configured');
-  keyValue(output, 'Provider available', provider?.provider_available ? 'yes' : 'no');
   if (!hasEstimate) {
-    text(output, 'Traffic estimates are unavailable. No visit count, rank, or popularity band was fabricated.', true);
-    text(output, 'WebLens requires a credible external data source (e.g. Tranco, CrUX) to produce traffic estimates.', true);
+    pdf.note(
+      'No traffic estimate was produced. ReverseX does not fabricate visit counts, ranks, or popularity bands from passive page observation — that requires a credible external dataset, and none was configured for this scan.',
+      COLOR.attention,
+    );
   }
-  renderFindings(output, popularity);
+  renderFindingGroup(pdf, popularity);
 
-  heading(output, 'Public signals', 2);
-  text(output, 'Analytics tooling observed on this visit does not measure or estimate traffic volume.', true);
-  renderFindings(output, signals);
-
-  // AI Findings
-  renderAiFindings(output, section.findings);
-
-  renderLimitations(output, section.meta.limitations);
-}
-
-function renderSectionQuality(output: Writer, result: AnalysisResult, key: SectionKey): void {
-  if (!result.quality) return;
-  const sq = result.quality.sections[key];
-  if (!sq) return;
-  ensurePage(output, 14);
-  output.doc.setFontSize(8.5);
-  output.doc.setFont('helvetica', 'normal');
-  output.doc.setTextColor(...GRAY);
-  output.doc.text(
-    `Evidence quality: ${sq.quality.toUpperCase()} (${sq.score}/100) — ${sq.analyzers_completed}/${sq.analyzers_total} analyzers, ${sq.findings_verified} verified, ${sq.findings_inferred} inferred`,
-    MARGIN,
-    output.y,
+  pdf.h2('Measurement tooling observed');
+  pdf.para(
+    'Analytics tags observed loading during this visit indicate which measurement tools are installed. They do not report or estimate traffic volume.',
+    { muted: true },
   );
-  output.y += 5;
-  if (sq.ai_fallback_recommended) {
-    output.doc.setTextColor(180, 92, 35);
-    output.doc.text('AI intelligence recommended for this section.', MARGIN, output.y);
-    output.doc.setTextColor(...DARK);
-    output.y += 5;
-  }
+  renderFindingGroup(pdf, analytics);
+
+  pdf.h2('Confidence');
+  pdf.para(
+    hasEstimate
+      ? 'Estimates above come from the configured data provider. Ranking datasets measure different things on different schedules, so treat any figure as an order of magnitude rather than a measurement.'
+      : 'No estimate exists to attach confidence to. This is a limitation of passive observation without a data provider, not a statement that the site has no traffic.',
+  );
 }
 
-function renderAiFindings(output: Writer, findings: Finding[]): void {
-  const ai = findings.filter((f) => f.status === 'ai_inferred');
+/* ------------------------------------------------------------------------------------ */
+/* Shared blocks                                                                        */
+/* ------------------------------------------------------------------------------------ */
+
+/** The complete finding set as a grid, so nothing in the app is missing from the export. */
+function renderAllFindings(pdf: Pdf, section: Section): void {
+  const deterministic = section.findings.filter((f) => f.status !== 'ai_inferred');
+  if (deterministic.length === 0) return;
+
+  pdf.h2(`All findings (${deterministic.length})`);
+  pdf.para(
+    'The complete deterministic finding set for this report, including negative and indeterminate results. Nothing is omitted for brevity.',
+    { muted: true },
+  );
+
+  pdf.grid(
+    ['Finding', 'Verdict', 'Value', 'Notes and limitations'],
+    [...deterministic]
+      .sort((a, b) => a.category.localeCompare(b.category) || a.id.localeCompare(b.id))
+      .map((finding) => [
+        finding.name,
+        findingStatusLabel(finding.status),
+        findingValue(finding),
+        [finding.reason, ...finding.limitations].filter(Boolean).join(' '),
+      ]),
+    { 0: { cellWidth: 40, fontStyle: 'bold' }, 1: { cellWidth: 24 }, 2: { cellWidth: 36 } },
+  );
+
+  renderEvidence(pdf, deterministic);
+}
+
+function renderEvidence(pdf: Pdf, findings: Finding[]): void {
+  const withEvidence = findings.filter((f) => f.evidence.length > 0);
+  if (withEvidence.length === 0) return;
+
+  pdf.h2('Supporting evidence');
+  pdf.para(
+    'Each asserted finding is traced back to the response, document, or browser observation it came from.',
+    { muted: true },
+  );
+
+  pdf.grid(
+    ['Finding', 'Source', 'Kind', 'Location / excerpt'],
+    withEvidence.flatMap((finding) =>
+      finding.evidence.slice(0, 4).map((ref, index) => [
+        index === 0 ? finding.name : '',
+        ref.source,
+        ref.kind,
+        [ref.location, ref.excerpt].filter(Boolean).join(' — ').slice(0, 220),
+      ]),
+    ),
+    { 0: { cellWidth: 36, fontStyle: 'bold' }, 1: { cellWidth: 34 }, 2: { cellWidth: 22 } },
+  );
+}
+
+function renderAiFindings(pdf: Pdf, section: Section): void {
+  const ai = section.findings.filter((f) => f.status === 'ai_inferred');
   if (ai.length === 0) return;
 
-  heading(output, 'AI / Research verdicts', 2);
-  text(output, 'These findings were produced by AI intelligence and are clearly marked as hypotheses.', true);
-  output.y += 2;
+  pdf.h2(`AI hypotheses (${ai.length})`);
+  pdf.note(
+    'The findings below were produced by the optional AI intelligence layer from observed evidence and public research. They are hypotheses, never verified facts, and they do not modify any deterministic finding.',
+    COLOR.ai,
+  );
+
   for (const finding of ai) {
-    ensurePage(output, 16);
-    output.doc.setFont('helvetica', 'bold');
-    output.doc.setFontSize(9.5);
-    output.doc.setTextColor(...DARK);
-    output.doc.text(finding.name, MARGIN, output.y);
-    statusBadge(output, finding.status, Math.min(MARGIN + output.doc.getTextWidth(finding.name) + 4, 160), output.y);
-    output.y += 5;
-    // Show reasoning from AI evidence
-    const reasoning = finding.evidence.find((e) => e.kind === 'ai_reasoning');
-    if (reasoning?.excerpt) text(output, `Reasoning: ${reasoning.excerpt}`, true);
-    if (finding.limitations.length > 0) text(output, `Limitations: ${finding.limitations.join('; ')}`, true);
-    output.y += 2;
+    pdf.findingHeading(finding.name, 'AI inferred', COLOR.ai);
+    const value = findingValue(finding);
+    if (value !== '—') pdf.para(`Claim: ${value}`);
+    const reasoning = finding.evidence.find((e) => e.kind === 'ai_reasoning')?.excerpt;
+    if (reasoning) pdf.para(reasoning);
+    const sources = finding.evidence
+      .filter((e) => e.kind === 'research_source')
+      .map((e) => e.excerpt ?? e.source);
+    for (const source of sources.slice(0, 5)) pdf.bullet(String(source), { muted: true });
+    for (const limitation of finding.limitations) {
+      pdf.bullet(`Limitation: ${limitation}`, { muted: true });
+    }
+    pdf.space(1);
   }
 }
 
-function renderFindings(output: Writer, findings: Finding[]): void {
+function renderInterpretations(pdf: Pdf, section: Section): void {
+  if (section.interpretations.length === 0) return;
+  pdf.h2('Interpretation');
+  pdf.para(
+    'The statements below are readings of the measured values above, not observations. Each cites the findings it derives from.',
+    { muted: true },
+  );
+  for (const item of section.interpretations) {
+    pdf.findingHeading(item.statement, 'Interpretation', COLOR.strong);
+    pdf.para(`Derived from: ${item.basis.join(', ')}`, { muted: true });
+    if (item.caveat) pdf.para(`Caveat: ${item.caveat}`, { muted: true });
+  }
+}
+
+function renderAnalyzers(pdf: Pdf, section: Section): void {
+  if (section.meta.analyzers.length === 0) return;
+  const completed = section.meta.analyzers.filter((a) => a.status === 'completed').length;
+
+  pdf.h2(`Analyzers (${completed}/${section.meta.analyzers.length} completed)`);
+  pdf.para(
+    'Which checks ran, and which did not. This is the difference between "no signal was found" and "the check never executed".',
+    { muted: true },
+  );
+  pdf.grid(
+    ['Analyzer', 'Version', 'Outcome', 'Duration', 'Detail'],
+    section.meta.analyzers.map((run) => [
+      run.id,
+      run.version,
+      run.status.replace(/_/g, ' '),
+      formatDuration(run.duration_ms),
+      run.error_detail ?? run.missing_evidence.join(', '),
+    ]),
+    {
+      0: { cellWidth: 44 },
+      1: { cellWidth: 16 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 20 },
+    },
+  );
+}
+
+function renderLimitations(pdf: Pdf, section: Section): void {
+  const sectionLimits = section.meta.limitations;
+  const findingLimits = [
+    ...new Set(section.findings.flatMap((f) => f.limitations)),
+  ].filter((limit) => !sectionLimits.includes(limit));
+
+  if (sectionLimits.length + findingLimits.length === 0) return;
+
+  pdf.h2('Limitations');
+  for (const limitation of sectionLimits) pdf.bullet(limitation, { muted: true });
+  if (findingLimits.length > 0) {
+    pdf.h3('From specific findings');
+    for (const limitation of findingLimits) pdf.bullet(limitation, { muted: true });
+  }
+}
+
+function renderFindingGroup(pdf: Pdf, findings: Finding[]): void {
   if (findings.length === 0) {
-    text(output, 'No observations were available for this group.', true);
+    pdf.para('No observation was available for this group.', { muted: true });
     return;
   }
-  for (const finding of findings) {
-    ensurePage(output, 13);
-    output.doc.setFont('helvetica', 'bold');
-    output.doc.setFontSize(9.5);
-    output.doc.setTextColor(...DARK);
-    output.doc.text(finding.name, MARGIN, output.y);
-    statusBadge(output, finding.status, Math.min(MARGIN + output.doc.getTextWidth(finding.name) + 4, 160), output.y);
-    output.y += 5;
-    const renderedValue = findingValue(finding);
-    if (renderedValue !== '—') text(output, `Value: ${renderedValue}`, true);
-    if (finding.reason) text(output, finding.reason, true);
-    if (finding.evidence.length > 0) text(output, `Evidence: ${finding.evidence.map((evidence) => evidence.source).join(', ')}`, true);
-    for (const limitation of finding.limitations) text(output, `Limitation: ${limitation}`, true);
-    output.y += 2;
+  pdf.grid(
+    ['Observation', 'Verdict', 'Value', 'Notes'],
+    findings.map((finding) => [
+      finding.name,
+      findingStatusLabel(finding.status),
+      findingValue(finding),
+      [finding.reason, ...finding.limitations].filter(Boolean).join(' '),
+    ]),
+    { 0: { cellWidth: 40, fontStyle: 'bold' }, 1: { cellWidth: 24 }, 2: { cellWidth: 34 } },
+  );
+}
+
+function renderClosing(pdf: Pdf, result: AnalysisResult): void {
+  pdf.chapterBanner('End', 'Scope and provenance', 'What this document is, and what it is not');
+
+  pdf.h2('Method');
+  pdf.para(STANDING_DISCLAIMER, { lead: true });
+
+  if (result.limitations.length > 0) {
+    pdf.h2('Stated limitations for this scan');
+    for (const limitation of result.limitations) pdf.bullet(limitation, { muted: true });
   }
+
+  pdf.h2('Provenance');
+  pdf.fields([
+    ['Target', result.target.final_url ?? result.target.normalized_url],
+    ['Scan id', result.scan.scan_id],
+    ['Scan status', result.scan.status.replace(/_/g, ' ')],
+    ['Scanned at', formatTimestamp(result.scan.finished_at ?? result.scan.created_at)],
+    ['Engine version', result.scan.engine_version],
+    ['Schema version', result.schema_version],
+    ['Document generated', formatTimestamp(new Date().toISOString())],
+  ]);
+
+  pdf.note(
+    'This report was generated in the browser from the stored analysis result. Regenerating it from the same result produces the same document; it does not re-scan the target.',
+  );
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* Helpers                                                                              */
+/* ------------------------------------------------------------------------------------ */
+
+function isRenderable(section: Section): boolean {
+  return (
+    section.meta.status === 'complete' ||
+    section.meta.status === 'partial' ||
+    section.meta.status === 'insufficient_evidence'
+  );
+}
+
+function countFindings(result: AnalysisResult): number {
+  return Object.values(result.sections).reduce(
+    (total, section) => total + section.findings.length,
+    0,
+  );
 }
 
 function findingValue(finding: Finding): string {
   if (finding.value !== null && finding.value !== undefined) {
-    const rendered = typeof finding.value === 'boolean' ? (finding.value ? 'yes' : 'no') : String(finding.value);
-    return finding.unit && finding.unit !== 'count' ? `${rendered} ${finding.unit}` : rendered;
+    const base =
+      typeof finding.value === 'boolean' ? (finding.value ? 'yes' : 'no') : String(finding.value);
+    return finding.unit && finding.unit !== 'count' ? `${base} ${finding.unit}` : base;
   }
   return finding.values.length > 0 ? finding.values.join(', ') : '—';
 }
 
-function renderLimitations(output: Writer, limitations: string[]): void {
-  if (limitations.length === 0) return;
-  heading(output, 'Limitations', 2);
-  for (const limitation of limitations) bullet(output, limitation, true);
-}
-
-function reportHeader(output: Writer, result: AnalysisResult, key: SectionKey): void {
-  heading(output, `${sectionLabel(key)} — ${result.target.host}`, 1);
-  keyValue(output, 'URL', result.target.final_url ?? result.target.normalized_url);
-  keyValue(output, 'Scanned', formatTimestamp(result.scan.finished_at ?? result.scan.created_at));
-  keyValue(output, 'Duration', formatDuration(result.scan.duration_ms));
-  keyValue(output, 'Engine', result.scan.engine_version);
-  separator(output);
-}
-
-function footer(output: Writer): void {
-  separator(output);
-  text(
-    output,
-    'WebLens passively observes one public page at one point in time. It does not submit forms, authenticate, or test access controls.',
-    true,
-  );
-  text(output, `Generated ${new Date().toISOString()} by WebLens.`, true);
-}
-
-export function generateSectionPdf(result: AnalysisResult, sectionKey: SectionKey): Blob {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const output = writer(doc);
-  reportHeader(output, result, sectionKey);
-  SECTION_RENDERERS[sectionKey](output, result);
-  footer(output);
-  return doc.output('blob');
-}
-
-export function generateCompletePdf(result: AnalysisResult): Blob {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const output = writer(doc);
-  renderCover(output, result);
-
-  for (const sectionKey of SECTION_KEYS) {
-    doc.addPage();
-    output.y = MARGIN;
-    SECTION_RENDERERS[sectionKey](output, result);
+function statusColor(status: FindingStatus): Rgb {
+  switch (status) {
+    case 'verified':
+      return COLOR.verified;
+    case 'strongly_inferred':
+      return COLOR.strong;
+    case 'inferred':
+      return COLOR.inferred;
+    case 'ai_inferred':
+      return COLOR.ai;
+    case 'unable_to_verify':
+      return COLOR.attention;
+    default:
+      return COLOR.neutral;
   }
+}
 
-  if (result.limitations.length > 0) {
-    doc.addPage();
-    output.y = MARGIN;
-    heading(output, 'Scan limitations', 1);
-    for (const limitation of result.limitations) bullet(output, limitation, true);
+function qualityTone(band: string): Rgb {
+  switch (band) {
+    case 'high':
+      return COLOR.verified;
+    case 'medium':
+      return COLOR.inferred;
+    case 'low':
+      return COLOR.attention;
+    default:
+      return COLOR.neutral;
   }
-  footer(output);
-  return doc.output('blob');
+}
+
+function hexToRgb(value: string): Rgb | null {
+  const hex = value.trim().replace('#', '');
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }
+  const rgb = value.match(/rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
+  return null;
 }

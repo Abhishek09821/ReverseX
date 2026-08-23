@@ -1,6 +1,6 @@
 """robots.txt fetching and evaluation.
 
-WebLens identifies itself and honours disallow rules by default. This is a small,
+ReverseX identifies itself and honours disallow rules by default. This is a small,
 deliberately conservative implementation of the matching rules from RFC 9309: longest match
 wins, ``Allow`` wins ties, and ``*``/``$`` wildcards are supported.
 

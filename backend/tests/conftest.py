@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -36,15 +37,26 @@ TEST_HOST = "example.test"
 
 
 @pytest.fixture
-def settings() -> Settings:
-    """Settings with politeness delays removed so tests do not sleep."""
+def settings(tmp_path: Path) -> Settings:
+    """Settings with politeness delays removed so tests do not sleep.
+
+    ``_env_file=None`` is the important part: without it these settings inherit the developer's
+    ``backend/.env``, so a machine with real SMTP credentials configured would make the contact
+    tests attempt live sends to a real inbox, and "is contact disabled by default" would pass or
+    fail depending on whose laptop ran it. Test configuration must be explicit.
+
+    ``stats_path`` is redirected into ``tmp_path`` so a run never increments the real deployment
+    counter or depends on its current value.
+    """
     return Settings(
+        _env_file=None,
         min_host_interval_seconds=0.0,
         max_concurrent_scans=4,
         max_concurrent_scans_per_host=2,
         result_ttl_seconds=60,
         analyzer_timeout_ms=2000,
         log_level="CRITICAL",
+        stats_path=tmp_path / "stats.json",
     )
 
 

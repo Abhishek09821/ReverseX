@@ -1,10 +1,17 @@
-import { findingStatusLabel } from '@/lib/format/status';
 import { buildDesignPresentation } from '@/lib/presentation/design';
-import type { AnalysisResult, Finding } from '@/types/analysis';
+import type { Finding } from '@/types/analysis';
 import { findingStatusToVerdict, verdictLabel } from '@/types/analysis';
 
-import { bullets, heading, keyValueTable, section as join, table } from '../kit';
-import { aiVerdictBlock, evidenceQualityBlock, runContextBlock, standardDocument, type RenderContext } from '../shared';
+import { heading, keyValueTable, section as join, table } from '../kit';
+import {
+  aiVerdictBlock,
+  evidenceQualityBlock,
+  runContextBlock,
+  siblingReportsBlock,
+  standardDocument,
+  type RenderContext,
+} from '../shared';
+
 
 /** Design Reconstruction report matching the spec template. */
 export function renderDesign(ctx: RenderContext): string {
@@ -124,6 +131,7 @@ export function renderDesign(ctx: RenderContext): string {
     mediaDetail,
     motionDetail,
     aiVerdictBlock(aiFindings, 'AI / Research Verdicts'),
+    siblingReportsBlock('design'),
   );
 }
 

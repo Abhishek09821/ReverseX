@@ -1,19 +1,53 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="WebLens analyzes a public website and reports observable technical evidence across design, technology, security, performance, accessibility, SEO, architecture and network."
+      content="Analyze the design, technology, security and public traffic intelligence of any public website."
     />
-    <meta name="robots" content="noindex" />
-    <title>WebLens — Website Technical Intelligence</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Icons. The `type` must match the actual file: a PNG served as image/svg+xml is rejected,
+      which is why an earlier favicon never appeared. 32px is the size browsers request for a tab;
+      the larger sizes are for install surfaces.
+    -->
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png" />
+    <link rel="icon" href="/favicon-96.png" sizes="96x96" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Light is the product's default presentation; dark is a per-visit choice. -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ReverseX" />
+    <meta property="og:title" content="ReverseX — Website Reverse Engineering Intelligence" />
+    <meta
+      property="og:description"
+      content="Analyze the design, technology, security and public traffic intelligence of any public website."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ReverseX — reverse engineer the web" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ReverseX — Website Reverse Engineering Intelligence" />
+    <meta
+      name="twitter:description"
+      content="Analyze the design, technology, security and public traffic intelligence of any public website."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <title>ReverseX — Website Reverse Engineering Intelligence</title>
   </head>
   <body>
     <div id="root"></div>
-    <noscript>WebLens is a developer tool and requires JavaScript.</noscript>
+    <noscript>ReverseX is a developer tool and requires JavaScript.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

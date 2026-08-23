@@ -1,6 +1,6 @@
 """Centralised configuration.
 
-Every tunable in WebLens lives here. Nothing outside this module reads ``os.environ``,
+Every tunable in ReverseX lives here. Nothing outside this module reads ``os.environ``,
 so the set of knobs is discoverable in one place and a typo in an env var name fails
 loudly at startup instead of silently changing behaviour.
 """
@@ -8,11 +8,18 @@ loudly at startup instead of silently changing behaviour.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_ALLOWED_PORTS = frozenset({80, 443})
+
+# ``src/weblens/config.py`` -> ``backend/``. Resolved from the module rather than the process
+# working directory, because the API is started from the repository root by `make dev-backend`
+# but its dotenv and writable state live under ``backend/``.
+BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Query-string parameter names whose values are replaced before evidence is created.
 # Redaction happens at collection time so a secret never enters the evidence graph at all.
@@ -56,7 +63,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="WEBLENS_",
-        env_file=".env",
+        env_file=BACKEND_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -106,6 +113,27 @@ class Settings(BaseSettings):
 
     # --- Security scoring ---
     minimum_applicable_points: float = Field(default=40.0, ge=0.0, le=100.0)
+
+    # --- Public usage counter ---
+    stats_enabled: bool = True
+    """Count completed scans so the site can show how much analysis this deployment has done.
+    Only aggregate totals are stored: never a URL, host, or anything about a target."""
+
+    stats_path: Path = Field(default_factory=lambda: BACKEND_ROOT / "var" / "stats.json")
+
+    # --- Support contact ---
+    contact_enabled: bool = False
+    contact_to_email: str = ""
+    contact_from_email: str = ""
+    contact_smtp_host: str = ""
+    contact_smtp_port: int = Field(default=587, ge=1, le=65_535)
+    contact_smtp_username: str = ""
+    contact_smtp_password: SecretStr = Field(default_factory=lambda: SecretStr(""))
+    contact_smtp_security: Literal["starttls", "ssl"] = "starttls"
+    contact_smtp_timeout_seconds: float = Field(default=10.0, gt=0.0, le=60.0)
+    contact_rate_limit_requests: int = Field(default=5, ge=1, le=100)
+    contact_rate_limit_window_seconds: float = Field(default=3600.0, ge=1.0, le=86_400.0)
+    contact_rate_limit_max_clients: int = Field(default=10_000, ge=100, le=100_000)
 
     # --- Optional AI layer ---
     ai_provider: str = Field(default="none", pattern="^(none)$")

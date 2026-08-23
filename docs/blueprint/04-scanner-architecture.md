@@ -1,6 +1,6 @@
 # 4. Scanner architecture
 
-The scanner is the only part of WebLens that touches the target. It collects once, broadly, into a
+The scanner is the only part of ReverseX that touches the target. It collects once, broadly, into a
 single immutable `RawEvidence` object; analysis happens afterwards, offline.
 
 ## Why collect-then-analyze

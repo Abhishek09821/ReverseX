@@ -58,9 +58,7 @@ class VerdictSource(BaseModel):
     source_type: str = Field(
         default="evidence", description="Type: evidence, research, observation."
     )
-    reliability: str = Field(
-        default="medium", description="high, medium, low."
-    )
+    reliability: str = Field(default="medium", description="high, medium, low.")
 
 
 class Verdict(BaseModel):
@@ -77,9 +75,7 @@ class Verdict(BaseModel):
     confidence: int = Field(
         ge=0, le=100, description="Confidence percentage reflecting evidence quality."
     )
-    hypothesis: str = Field(
-        default="", description="Extended explanation of the claim."
-    )
+    hypothesis: str = Field(default="", description="Extended explanation of the claim.")
     basis: list[str] = Field(
         default_factory=list,
         description="Evidence items that support this verdict.",

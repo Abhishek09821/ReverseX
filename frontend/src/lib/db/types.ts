@@ -58,7 +58,7 @@ export interface MetaRecord {
   value: unknown;
 }
 
-export interface WebLensDb extends DBSchema {
+export interface ReverseXDb extends DBSchema {
   scans: {
     key: string;
     value: ScanRecord;

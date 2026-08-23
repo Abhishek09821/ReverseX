@@ -11,11 +11,11 @@
  */
 import type { IDBPDatabase, IDBPTransaction } from 'idb';
 
-import type { WebLensDb } from './types';
+import type { ReverseXDb } from './types';
 
 type Migration = (
-  db: IDBPDatabase<WebLensDb>,
-  tx: IDBPTransaction<WebLensDb, ArrayLike<never>, 'versionchange'>,
+  db: IDBPDatabase<ReverseXDb>,
+  tx: IDBPTransaction<ReverseXDb, ArrayLike<never>, 'versionchange'>,
 ) => void;
 
 const migrations: Record<number, Migration> = {
@@ -33,10 +33,10 @@ const migrations: Record<number, Migration> = {
 };
 
 export function applyMigrations(
-  db: IDBPDatabase<WebLensDb>,
+  db: IDBPDatabase<ReverseXDb>,
   oldVersion: number,
   newVersion: number | null,
-  tx: IDBPTransaction<WebLensDb, ArrayLike<never>, 'versionchange'>,
+  tx: IDBPTransaction<ReverseXDb, ArrayLike<never>, 'versionchange'>,
 ): void {
   const target = newVersion ?? oldVersion;
   for (let version = oldVersion + 1; version <= target; version += 1) {

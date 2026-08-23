@@ -93,7 +93,7 @@ nothing to mix), and `CI-03` is `not_applicable` when there are no cross-origin 
 | `EX-03` | No publicly referenced source maps | 2 | no `sourceMappingURL` reference observed in loaded scripts | — | one or more references observed |
 | `EX-04` | No debug/diagnostic headers exposed | 2 | none of the known debug header names present | one present without internal detail → 0.5 | present with internal paths/hostnames/timings |
 
-`EX-03` is based on references observed in loaded script bodies. WebLens does **not** fetch the `.map`
+`EX-03` is based on references observed in loaded script bodies. ReverseX does **not** fetch the `.map`
 files to confirm they resolve — that would be probing for content, not observing what the page
 already told us. The finding says exactly what was observed: a reference exists.
 

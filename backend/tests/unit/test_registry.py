@@ -1,7 +1,7 @@
 """Registry consistency.
 
 The registry is the single source of truth behind ``/capabilities``, the pipeline, and the
-frontend's section states. If it is wrong, WebLens misreports what it examined - which is worse
+frontend's section states. If it is wrong, ReverseX misreports what it examined - which is worse
 than a crash.
 """
 

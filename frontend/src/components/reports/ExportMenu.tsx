@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { bundleToZip, downloadBlob, downloadJson, downloadText } from '@/features/reports/bundle';
 import { buildReportBundle } from '@/features/reports/generate';
-import { generateCompletePdf, generateSectionPdf } from '@/features/reports/pdf';
 import { REPORT_DEFINITIONS } from '@/features/reports/markdown/renderers';
 import { renderAnalysisJson } from '@/features/reports/json';
 import { slugifyHost, timestampSlug } from '@/lib/format/values';
@@ -42,19 +41,30 @@ export function ExportMenu({ result }: { result: AnalysisResult }) {
     }
   };
 
-  const downloadFullPdf = () => {
+  /**
+   * The PDF engine is loaded on demand.
+   *
+   * jsPDF and its table plugin are a large dependency that most visits to a result never need;
+   * pulling them in eagerly made simply *reading* a scan pay for the ability to export one.
+   */
+  const downloadFullPdf = async () => {
     setBusy(true);
     try {
-      const blob = generateCompletePdf(result);
-      downloadBlob(blob, `${baseName}-complete.pdf`);
+      const { generateCompletePdf } = await import('@/features/reports/pdf');
+      downloadBlob(generateCompletePdf(result), `${baseName}-complete.pdf`);
     } finally {
       setBusy(false);
     }
   };
 
-  const downloadSectionPdf = (sectionKey: SectionKey) => {
-    const blob = generateSectionPdf(result, sectionKey);
-    downloadBlob(blob, `${baseName}-${sectionKey}.pdf`);
+  const downloadSectionPdf = async (sectionKey: SectionKey) => {
+    setBusy(true);
+    try {
+      const { generateSectionPdf } = await import('@/features/reports/pdf');
+      downloadBlob(generateSectionPdf(result, sectionKey), `${baseName}-${sectionKey}.pdf`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -71,7 +81,7 @@ export function ExportMenu({ result }: { result: AnalysisResult }) {
           <FileArchiveIcon className="size-4" />
           complete-report.zip
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={downloadFullPdf}>
+        <DropdownMenuItem onSelect={() => void downloadFullPdf()}>
           <FileIcon className="size-4" />
           complete-report.pdf
         </DropdownMenuItem>
@@ -89,7 +99,7 @@ export function ExportMenu({ result }: { result: AnalysisResult }) {
         {REPORT_DEFINITIONS.map((definition) => (
           <DropdownMenuItem
             key={`pdf-${definition.section}`}
-            onSelect={() => downloadSectionPdf(definition.section)}
+            onSelect={() => void downloadSectionPdf(definition.section)}
           >
             <FileIcon className="size-4" />
             {definition.file.replace(/\.md$/, '.pdf')}

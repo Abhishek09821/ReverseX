@@ -2,7 +2,7 @@
 
 Note what is *not* an error here: a target that responds 404, 403, or 500 is data, recorded on
 the result. Only a failure to obtain any response at all produces a 502. Conflating the two
-would make WebLens unable to report on exactly the sites people most want reported on.
+would make ReverseX unable to report on exactly the sites people most want reported on.
 """
 
 from __future__ import annotations

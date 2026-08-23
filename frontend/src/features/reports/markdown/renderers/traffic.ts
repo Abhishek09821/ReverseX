@@ -1,9 +1,14 @@
-import { findingStatusLabel } from '@/lib/format/status';
 import { trafficPayloadSchema, type Finding } from '@/types/analysis';
 import { findingStatusToVerdict, verdictLabel } from '@/types/analysis';
 
 import { blockquote, heading, keyValueTable, section as join, table } from '../kit';
-import { aiVerdictBlock, evidenceQualityBlock, standardDocument, type RenderContext } from '../shared';
+import {
+  aiVerdictBlock,
+  evidenceQualityBlock,
+  siblingReportsBlock,
+  standardDocument,
+  type RenderContext,
+} from '../shared';
 
 /** Traffic and Popularity report matching the spec template. */
 export function renderTraffic(ctx: RenderContext): string {
@@ -30,7 +35,7 @@ export function renderTraffic(ctx: RenderContext): string {
     hasEstimate
       ? findingsTable(popularity)
       : blockquote(
-          'Traffic estimates are unavailable. WebLens does not fabricate visit counts, rank, or a popularity band from passive page observations.',
+          'Traffic estimates are unavailable. ReverseX does not fabricate visit counts, rank, or a popularity band from passive page observations.',
         ),
     !hasEstimate && popularity.length > 0 ? findingsTable(popularity) : '',
   );
@@ -64,6 +69,7 @@ export function renderTraffic(ctx: RenderContext): string {
     publicSignals,
     aiVerdictBlock(aiFindings, 'AI / Research Verdicts'),
     confidenceBlock,
+    siblingReportsBlock('traffic'),
   );
 }
 

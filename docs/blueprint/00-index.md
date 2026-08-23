@@ -1,7 +1,7 @@
-# WebLens Implementation Blueprint
+# ReverseX Implementation Blueprint
 
-WebLens is a **Website Technical Intelligence Analyzer**. A user submits a publicly reachable URL;
-WebLens collects observable evidence from that site with a real browser and HTTP/TLS probes, runs
+ReverseX is a **Website Technical Intelligence Analyzer**. A user submits a publicly reachable URL;
+ReverseX collects observable evidence from that site with a real browser and HTTP/TLS probes, runs
 deterministic analyzers over that evidence, and renders a technical report.
 
 ## Non-negotiable design axioms

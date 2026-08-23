@@ -79,7 +79,7 @@ in `utils/ids.py`. A supply-chain surface for that is not worth it.
 | `jsdom` | latest at setup | DOM for component tests |
 | `openapi-typescript` | 7.13.0 | generates `api.generated.ts` from `contracts/openapi.json` |
 | `eslint` + `typescript-eslint` + react plugins | latest at setup | lint |
-| `@axe-core/react` or `axe-core` (dev only) | pinned at setup | accessibility assertions for WebLens' own UI |
+| `@axe-core/react` or `axe-core` (dev only) | pinned at setup | accessibility assertions for ReverseX' own UI |
 
 shadcn/ui is **not** a dependency — it is a generator. Components are copied into
 `src/components/ui/` and versioned with the app, which is the point of the model: no upstream breakage,

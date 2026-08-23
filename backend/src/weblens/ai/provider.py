@@ -49,7 +49,7 @@ class NullProvider:
     ) -> ExplainResponse:
         del result, sections, audience
         raise AiDisabledError(
-            "No AI provider is configured. WebLens produces its analysis without one; the "
+            "No AI provider is configured. ReverseX produces its analysis without one; the "
             "explanation layer is optional and adds no detection capability."
         )
 

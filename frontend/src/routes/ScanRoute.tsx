@@ -1,19 +1,15 @@
-import { CircleAlertIcon, ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react';
+import { CircleAlertIcon, InfoIcon, TriangleAlertIcon } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
-import { ExportMenu } from '@/components/reports/ExportMenu';
-import { SectionNav, type NavKey } from '@/components/sections/SectionNav';
 import { OverviewPanel } from '@/components/sections/OverviewPanel';
+import { ScanHero } from '@/components/sections/ScanHero';
 import { SectionPanel } from '@/components/sections/SectionPanel';
+import { SectionTabs, type NavKey } from '@/components/sections/SectionTabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStoredResult } from '@/features/history/useScanLibrary';
-import { formatDuration, formatTimestamp, truncateMiddle } from '@/lib/format/values';
-import { sectionKeySchema } from '@/types/analysis';
+import { sectionKeySchema, type SectionKey } from '@/types/analysis';
 
 export function ScanRoute() {
   const { scanId, sectionKey } = useParams<{ scanId: string; sectionKey?: string }>();
@@ -30,125 +26,113 @@ export function ScanRoute() {
 
   if (stored.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="section-shell space-y-4 py-12">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-5 w-96" />
+        <Skeleton className="mt-8 h-32 w-full" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Skeleton className="h-52 w-full" />
+          <Skeleton className="h-52 w-full" />
+          <Skeleton className="h-52 w-full" />
+        </div>
       </div>
     );
   }
 
   if (!stored.data) {
     return (
-      <Alert variant="warning">
-        <TriangleAlertIcon className="size-4" />
-        <AlertTitle>This scan is not stored in this browser</AlertTitle>
-        <AlertDescription className="space-y-3">
-          <p>
-            Scans live only in the browser profile that ran them. If this link came from elsewhere,
-            or the scan was deleted, run a new analysis.
-          </p>
-          <Button variant="outline" size="sm" onClick={() => navigate('/')}>
-            Back to analyze
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <div className="section-shell py-12">
+        <Alert variant="warning" className="mx-auto max-w-2xl">
+          <TriangleAlertIcon className="size-4" />
+          <AlertTitle>This scan is not stored in this browser</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Scans live only in the browser profile that ran them. If this link came from
+              elsewhere, or the scan was deleted, run a new analysis.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => navigate('/')}>
+              Back to analyze
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
   const result = stored.data;
   const scan = result.scan;
-  const target = result.target;
   const degraded = result.errors.length > 0 || scan.status === 'completed_with_errors';
 
+  const goTo = (key: NavKey) =>
+    navigate(key === 'overview' ? `/scan/${scan.scan_id}` : `/scan/${scan.scan_id}/${key}`);
+
   return (
-    <div className="space-y-5">
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">{target.host}</h1>
-              <Badge variant="outline" className="font-mono">
-                {scan.status.replace(/_/g, ' ')}
-              </Badge>
-              {target.http_status !== null && target.http_status !== undefined && (
-                <Badge variant="muted" className="font-mono">
-                  HTTP {target.http_status}
-                </Badge>
+    <div className="pb-20">
+      <ScanHero result={result} />
+
+      <SectionTabs sections={result.sections} active={active} onSelect={goTo} />
+
+      {/* `key` restarts the entrance animation on every tab change. */}
+      <div key={active} className="section-shell pt-8">
+        <div className="space-y-4">
+          {degraded && (
+            <Alert variant="warning" className="reveal">
+              <CircleAlertIcon className="size-4" />
+              <AlertTitle>
+                Completed with {result.errors.length} issue
+                {result.errors.length === 1 ? '' : 's'}
+              </AlertTitle>
+              <AlertDescription>
+                Affected reports state what could not be produced and why. Everything else is
+                unaffected.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {active === 'overview' ? (
+            <>
+              <OverviewPanel
+                result={result}
+                onOpenSection={(key: SectionKey) => goTo(key)}
+              />
+
+              {result.limitations.length > 0 && (
+                <section
+                  className="reveal rounded-xl border border-border bg-card p-5 sm:p-6"
+                  style={{ animationDelay: '300ms' }}
+                  aria-labelledby="scope-title"
+                >
+                  <h2
+                    id="scope-title"
+                    className="flex items-center gap-2 text-sm font-semibold"
+                  >
+                    <InfoIcon className="size-4 text-primary" aria-hidden="true" />
+                    Scope of this scan
+                  </h2>
+                  <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {result.limitations.map((limitation) => (
+                      <li
+                        key={limitation}
+                        className="flex gap-2.5 text-xs leading-5 text-muted-foreground"
+                      >
+                        <span
+                          className="mt-1.5 size-1 shrink-0 rounded-full bg-muted-foreground/50"
+                          aria-hidden="true"
+                        />
+                        {limitation}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
+            </>
+          ) : (
+            <div className="reveal">
+              <SectionPanel result={result} sectionKey={active} />
             </div>
-            <a
-              href={target.final_url ?? target.normalized_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-1 inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
-            >
-              {truncateMiddle(target.final_url ?? target.normalized_url, 96)}
-              <ExternalLinkIcon className="size-3" aria-hidden="true" />
-            </a>
-          </div>
-          <ExportMenu result={result} />
+          )}
         </div>
-
-        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-          <MetaItem label="Scanned" value={formatTimestamp(scan.finished_at ?? scan.created_at)} />
-          <MetaItem label="Duration" value={formatDuration(scan.duration_ms)} />
-          <MetaItem label="Engine" value={scan.engine_version} />
-          <MetaItem label="Schema" value={result.schema_version} />
-          <MetaItem label="Collection" value={scan.run_context?.collection_mode ?? 'unknown'} />
-          <MetaItem label="Scan id" value={scan.scan_id} mono />
-        </dl>
-      </header>
-
-      {degraded && (
-        <Alert variant="warning">
-          <CircleAlertIcon className="size-4" />
-          <AlertTitle>
-            Completed with {result.errors.length} issue{result.errors.length === 1 ? '' : 's'}
-          </AlertTitle>
-          <AlertDescription>
-            Affected sections state what could not be produced and why. Everything else is unaffected.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {result.limitations.length > 0 && (
-        <Card>
-          <CardContent className="pt-4">
-            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Scope of this scan
-            </p>
-            <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-              {result.limitations.map((limitation) => (
-                <li key={limitation}>{limitation}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      <Separator />
-
-      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
-        <SectionNav
-          sections={result.sections}
-          active={active}
-          onSelect={(key) => navigate(key === 'overview' ? `/scan/${scan.scan_id}` : `/scan/${scan.scan_id}/${key}`)}
-        />
-        {active === 'overview' ? (
-          <OverviewPanel result={result} />
-        ) : (
-          <SectionPanel result={result} sectionKey={active} />
-        )}
       </div>
-    </div>
-  );
-}
-
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <dt>{label}</dt>
-      <dd className={mono ? 'font-mono text-foreground/80' : 'text-foreground/80'}>{value}</dd>
     </div>
   );
 }

@@ -33,6 +33,8 @@ coverage/
 
 # WebLens local artifacts
 backend/.weblens-cache/
+# Runtime usage counter: deployment state, not source.
+backend/var/
 backend/tests/fixtures/evidence/*.local.json
 scratch/
 *.log

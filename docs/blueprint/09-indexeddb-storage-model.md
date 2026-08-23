@@ -77,7 +77,7 @@ read by `migrateResult(record)`, which dispatches on the record's `schema_versio
 - `schema_version` matches current → return as-is.
 - Older, with a registered upgrade path → transform, re-validate, write back.
 - Older with no path, or newer than the app (user downgraded) → move the id into
-  `meta.quarantine` and surface the record in the UI as "saved by a different WebLens version, cannot
+  `meta.quarantine` and surface the record in the UI as "saved by a different ReverseX version, cannot
   be displayed", with a delete action. Nothing is force-rendered and nothing is silently dropped.
 
 ## Quota and pressure

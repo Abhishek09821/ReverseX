@@ -14,11 +14,17 @@ from fastapi import Depends, Request
 from weblens.config import Settings
 from weblens.orchestration.job_store import InMemoryJobStore
 from weblens.orchestration.service import ScanService
+from weblens.orchestration.stats import UsageCounter
 
 
 def get_settings_dep(request: Request) -> Settings:
     settings: Settings = request.app.state.settings
     return settings
+
+
+def get_usage_counter(request: Request) -> UsageCounter:
+    counter: UsageCounter = request.app.state.usage_counter
+    return counter
 
 
 def get_scan_service(request: Request) -> ScanService:
@@ -34,3 +40,4 @@ def get_job_store(request: Request) -> InMemoryJobStore:
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 ScanServiceDep = Annotated[ScanService, Depends(get_scan_service)]
 JobStoreDep = Annotated[InMemoryJobStore, Depends(get_job_store)]
+UsageCounterDep = Annotated[UsageCounter, Depends(get_usage_counter)]

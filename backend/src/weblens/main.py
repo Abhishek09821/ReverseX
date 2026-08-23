@@ -23,6 +23,7 @@ from weblens.logging import configure_logging, get_logger
 from weblens.orchestration import registry
 from weblens.orchestration.job_store import InMemoryJobStore, periodic_sweep
 from weblens.orchestration.service import ScanService
+from weblens.orchestration.stats import UsageCounter
 from weblens.version import ENGINE_VERSION
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ Detection is deterministic and never performed by an AI model. Every asserted fa
 evidence that supports it, and anything that cannot be established from observation is reported
 as not detected, not determinable, or unable to verify rather than guessed.
 
-Analysis is passive: WebLens observes what a normal visit reveals. It does not test
+Analysis is passive: ReverseX observes what a normal visit reveals. It does not test
 authentication, submit forms, fuzz inputs, or attempt to bypass access controls.
 """.strip()
 
@@ -55,7 +56,7 @@ def create_app(
     registry.validate_registry()
 
     app = FastAPI(
-        title="WebLens API",
+        title="ReverseX API",
         version=ENGINE_VERSION,
         description=DESCRIPTION,
         lifespan=_lifespan,
@@ -97,9 +98,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     search_provider = get_search_provider(settings.search_provider)
     inference_provider = get_inference_provider(settings.inference_provider)
 
+    usage_counter = UsageCounter(settings.stats_path, enabled=settings.stats_enabled)
+
     app.state.target_guard = guard
     app.state.job_store = store
     app.state.collector = collector
+    app.state.usage_counter = usage_counter
     app.state.scan_service = ScanService(
         settings,
         store,
@@ -107,6 +111,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         collector,
         search_provider=search_provider,
         inference_provider=inference_provider,
+        usage_counter=usage_counter,
     )
 
     sweeper = asyncio.create_task(periodic_sweep(store), name="weblens-job-sweeper")

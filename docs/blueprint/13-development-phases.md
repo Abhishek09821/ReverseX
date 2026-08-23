@@ -91,7 +91,7 @@ ungrounded claim, the claim is dropped and reported; no AI text is ever persiste
 
 Budget/timeout tuning, memory and browser-crash recovery, structured log review, per-host rate
 limiting, error-message review pass, `docs/limitations.md` completeness audit, accessibility audit of
-WebLens itself, performance of large-result rendering (virtualized network table).
+ReverseX itself, performance of large-result rendering (virtualized network table).
 
 ## Sequencing rationale
 

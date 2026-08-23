@@ -233,7 +233,7 @@ export function makeResult(overrides: Partial<AnalysisResult> = {}): AnalysisRes
       run_context: {
         browser_name: 'Chromium',
         browser_version: '140',
-        user_agent: 'WebLens/0.2.0 passive website analyzer',
+        user_agent: 'ReverseX/0.2.0 passive website analyzer',
         viewport: { width: 1440, height: 900 },
         device_scale_factor: 1,
         wait_strategy: 'network_idle',

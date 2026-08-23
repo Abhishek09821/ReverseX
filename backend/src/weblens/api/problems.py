@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from weblens.domain.enums import ErrorCode
-from weblens.domain.errors import ProblemDetail, RateLimitedError, WebLensError
+from weblens.domain.errors import ProblemDetail, RateLimitedError, ReverseXError
 from weblens.logging import get_logger
 from weblens.utils.ids import new_ulid
 
@@ -31,8 +31,8 @@ def problem_response(problem: ProblemDetail, headers: dict[str, str] | None = No
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(WebLensError)
-    async def _weblens_error(request: Request, exc: WebLensError) -> JSONResponse:
+    @app.exception_handler(ReverseXError)
+    async def _weblens_error(request: Request, exc: ReverseXError) -> JSONResponse:
         problem = ProblemDetail.from_error(exc, instance=request.url.path)
         headers = None
         if isinstance(exc, RateLimitedError):

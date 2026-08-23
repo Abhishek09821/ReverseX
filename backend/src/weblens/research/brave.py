@@ -22,34 +22,38 @@ from weblens.research.base import SearchResult
 logger = get_logger(__name__)
 
 # Domains that indicate high-quality primary sources
-_OFFICIAL_DOMAINS = frozenset({
-    "engineering.atspotify.com",
-    "engineering.fb.com",
-    "netflixtechblog.com",
-    "blog.google",
-    "aws.amazon.com",
-    "cloud.google.com",
-    "azure.microsoft.com",
-    "developer.mozilla.org",
-    "web.dev",
-})
+_OFFICIAL_DOMAINS = frozenset(
+    {
+        "engineering.atspotify.com",
+        "engineering.fb.com",
+        "netflixtechblog.com",
+        "blog.google",
+        "aws.amazon.com",
+        "cloud.google.com",
+        "azure.microsoft.com",
+        "developer.mozilla.org",
+        "web.dev",
+    }
+)
 
 _GITHUB_DOMAINS = frozenset({"github.com", "github.io"})
 
-_TECH_PUBLICATIONS = frozenset({
-    "stackshare.io",
-    "builtwith.com",
-    "wappalyzer.com",
-    "similartech.com",
-    "w3techs.com",
-    "techradar.com",
-    "infoq.com",
-    "smashingmagazine.com",
-    "css-tricks.com",
-    "dev.to",
-    "medium.com",
-    "hackernoon.com",
-})
+_TECH_PUBLICATIONS = frozenset(
+    {
+        "stackshare.io",
+        "builtwith.com",
+        "wappalyzer.com",
+        "similartech.com",
+        "w3techs.com",
+        "techradar.com",
+        "infoq.com",
+        "smashingmagazine.com",
+        "css-tricks.com",
+        "dev.to",
+        "medium.com",
+        "hackernoon.com",
+    }
+)
 
 
 def _relevance_for_domain(domain: str) -> float:

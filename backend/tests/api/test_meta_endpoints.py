@@ -84,6 +84,7 @@ async def test_capabilities_exposes_limits(
 async def test_capabilities_do_not_advertise_null_provider_fallbacks() -> None:
     response = await capabilities(
         Settings(
+            _env_file=None,
             search_provider="not-a-provider",
             inference_provider="not-a-provider",
             traffic_provider="not-a-provider",

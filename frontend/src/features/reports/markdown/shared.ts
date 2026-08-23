@@ -11,6 +11,15 @@
  */
 import { formatDuration, formatTimestamp } from '@/lib/format/values';
 import { findingStatusLabel, isAsserted } from '@/lib/format/status';
+import { sectionLabel } from '@/lib/format/labels';
+
+import {
+  HOW_TO_READ_INTRO,
+  SECTION_DOCS,
+  STANDING_DISCLAIMER as DISCLAIMER,
+  VERDICT_GLOSSARY,
+  evidenceQualityMeaning,
+} from '../report-copy';
 import type {
   AnalysisResult,
   Finding,
@@ -21,22 +30,21 @@ import type {
 import { findingStatusToVerdict, verdictLabel } from '@/types/analysis';
 
 import {
+  blockquote,
   bullets,
   cell,
   codeBlock,
   detailsBlock,
   heading,
+  inlineCode,
   keyValueTable,
   section as join,
   table,
 } from './kit';
 
-export const GENERATOR = 'WebLens report generator 2.0';
+export const GENERATOR = 'ReverseX report generator 2.0';
 
-export const STANDING_DISCLAIMER =
-  'WebLens observes what a normal visit to a public URL reveals. It is passive: no forms were ' +
-  'submitted, no authentication was attempted, and no access controls were tested. Findings ' +
-  'describe one page at one point in time.';
+export { STANDING_DISCLAIMER } from '../report-copy';
 
 export interface RenderContext {
   result: AnalysisResult;
@@ -55,10 +63,51 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   maxEvidencePerFinding: 4,
 };
 
+/**
+ * Chapter framing.
+ *
+ * An exported file is read without the app around it. Without a statement of what the report is
+ * built from and where it stops, a reader has no way to tell a genuine absence from a gap in
+ * collection — which is the single most important thing these documents have to communicate.
+ */
+export function aboutBlock(sectionKey: SectionKey): string {
+  const docs = SECTION_DOCS[sectionKey];
+  return join(
+    heading(2, 'About this report'),
+    `**${docs.tagline}.**`,
+    docs.covers,
+    heading(3, 'How to read it'),
+    docs.howToRead,
+    heading(3, 'What it cannot establish'),
+    blockquote(docs.cannot),
+    heading(3, 'Contents'),
+    bullets(docs.outline),
+  );
+}
+
+/** Full verdict glossary, printed in every file so no export depends on another. */
+export function verdictGlossaryBlock(): string {
+  return join(
+    heading(2, 'Verdict vocabulary'),
+    HOW_TO_READ_INTRO,
+    table(
+      ['Verdict', 'Meaning'],
+      VERDICT_GLOSSARY.map((entry) => [entry.label, entry.meaning]),
+    ),
+    blockquote(
+      '**"Not detected" is not "not used".** Server-rendered, self-hosted, proxied and bundled ' +
+        'technologies frequently leave no signature a public visitor can see. ' +
+        '**"Not publicly determinable" is a refusal, not a gap** — it marks properties that cannot ' +
+        'honestly be established from outside, so no guess is offered.',
+    ),
+  );
+}
+
 export function frontMatter(result: AnalysisResult, title: string): string {
   const scan = result.scan;
   return join(
     heading(1, `${title} — ${result.target.host}`),
+    `> Passive analysis of ${inlineCode(result.target.final_url ?? result.target.normalized_url)}, scanned ${formatTimestamp(scan.finished_at ?? scan.created_at)}.`,
     keyValueTable([
       ['Requested URL', result.target.requested_url],
       ['Normalized URL', result.target.normalized_url],
@@ -129,7 +178,7 @@ export function unavailableBlock(ctx: RenderContext): string {
   const meta = ctx.section.meta;
   const explanation =
     meta.status === 'not_implemented'
-      ? 'No analyzer for this section ships in this build of WebLens yet. Nothing about the target was inferred in its place.'
+      ? 'No analyzer for this section ships in this build of ReverseX yet. Nothing about the target was inferred in its place.'
       : 'This section could not be produced for this scan.';
   return join(
     heading(2, 'No findings available'),
@@ -253,7 +302,22 @@ export function scanErrorsBlock(result: AnalysisResult, sectionKey: SectionKey):
 }
 
 export function footer(): string {
-  return join('---', `_${STANDING_DISCLAIMER}_`);
+  return join('---', heading(2, 'Method and scope'), blockquote(DISCLAIMER));
+}
+
+/** Cross-links the other three reports so a single file is not mistaken for the whole analysis. */
+export function siblingReportsBlock(current: SectionKey): string {
+  const others = (['design', 'technology', 'security', 'traffic'] as SectionKey[]).filter(
+    (key) => key !== current,
+  );
+  return join(
+    heading(2, 'Other reports in this analysis'),
+    'This file is one of four. The complete analysis also contains:',
+    bullets(
+      others.map((key) => `**${sectionLabel(key)}** — ${SECTION_DOCS[key].tagline.toLowerCase()}`),
+    ),
+    '_The machine-readable `analysis.json` contains every finding from all four reports._',
+  );
 }
 
 /**
@@ -269,6 +333,8 @@ export function standardDocument(ctx: RenderContext, title: string, ...extra: st
   const renderable = ctx.section.meta.status === 'complete' || ctx.section.meta.status === 'partial';
   return join(
     frontMatter(ctx.result, title),
+    aboutBlock(ctx.sectionKey),
+    verdictGlossaryBlock(),
     sectionStatusBlock(ctx),
     renderable ? '' : unavailableBlock(ctx),
     ...extra,
@@ -276,7 +342,26 @@ export function standardDocument(ctx: RenderContext, title: string, ...extra: st
     renderable ? interpretationsBlock(ctx.section.interpretations) : '',
     scanErrorsBlock(ctx.result, ctx.sectionKey),
     limitationsBlock(ctx),
+    provenanceBlock(ctx.result),
     footer(),
+  );
+}
+
+/** Where the document came from, so a file found later can be placed in context. */
+export function provenanceBlock(result: AnalysisResult): string {
+  return join(
+    heading(2, 'Provenance'),
+    keyValueTable([
+      ['Target', result.target.final_url ?? result.target.normalized_url],
+      ['Scan id', result.scan.scan_id],
+      ['Scan status', result.scan.status],
+      ['Scanned at', formatTimestamp(result.scan.finished_at ?? result.scan.created_at)],
+      ['Engine version', result.scan.engine_version],
+      ['Schema version', result.schema_version],
+      ['Generated by', GENERATOR],
+      ['Generated at', formatTimestamp(new Date().toISOString())],
+    ]),
+    '_Regenerating this document from the same stored result produces the same output. It does not re-scan the target._',
   );
 }
 
@@ -317,7 +402,8 @@ export function evidenceQualityBlock(result: AnalysisResult, sectionKey: Section
     : 'Normal evidence (AI not configured)';
 
   return join(
-    heading(2, 'Evidence Quality'),
+    heading(2, 'Evidence quality for this report'),
+    `Completeness of the evidence this report was built from. ${evidenceQualityMeaning(sectionQuality.quality)}`,
     keyValueTable([
       ['Quality band', humanize(sectionQuality.quality)],
       ['Score', `${sectionQuality.score}/100`],
@@ -327,8 +413,8 @@ export function evidenceQualityBlock(result: AnalysisResult, sectionKey: Section
       ['Negative findings', sectionQuality.findings_negative],
       ['Analysis mode', aiMode],
     ]),
-    sectionQuality.ai_fallback_recommended
-      ? `_${sectionQuality.reason}_`
+    sectionQuality.ai_fallback_recommended && sectionQuality.reason
+      ? blockquote(sectionQuality.reason)
       : '',
   );
 }

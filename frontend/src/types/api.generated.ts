@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a support request
+         * @description Rate-limit first, silently trap bots, then wait for the SMTP handoff.
+         */
+        post: operations["contact_api_contact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/explain": {
         parameters: {
             query?: never;
@@ -113,6 +133,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/scans/{scan_id}/intelligence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run AI intelligence fallback on an existing scan
+         * @description Trigger AI intelligence for sections with insufficient evidence.
+         *
+         *     This endpoint is user-initiated and never runs automatically. It:
+         *     1. Reads the existing deterministic scan result
+         *     2. Runs public web research (if a search provider is configured)
+         *     3. Runs AI inference to fill gaps in the specified sections
+         *     4. Updates the stored result with AI-inferred findings (clearly marked)
+         *
+         *     AI findings NEVER overwrite or modify verified/deterministic findings.
+         */
+        post: operations["run_intelligence_api_v1_scans__scan_id__intelligence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scans/{scan_id}/intelligence/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check if AI intelligence fallback is available
+         * @description Check whether AI intelligence can be triggered for this scan.
+         *
+         *     Returns availability information without spending any API credits.
+         */
+        get: operations["intelligence_status_api_v1_scans__scan_id__intelligence_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scans/{scan_id}/result": {
         parameters: {
             query?: never;
@@ -122,6 +192,23 @@ export interface paths {
         };
         /** Structured analysis result */
         get: operations["get_result_api_v1_scans__scan_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregate scan count for this deployment */
+        get: operations["stats_api_v1_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -163,6 +250,8 @@ export interface components {
             errors?: components["schemas"]["ScanError"][];
             /** Limitations */
             limitations?: string[];
+            /** @description Evidence quality assessment. Determines whether AI fallback is recommended. */
+            quality?: components["schemas"]["ScanQuality"] | null;
             scan: components["schemas"]["ScanMetadata"];
             /**
              * Schema Version
@@ -326,6 +415,36 @@ export interface components {
          */
         Confidence: "definitive" | "strong" | "moderate" | "weak";
         /**
+         * ContactRequest
+         * @description Bounded client input; all delivery routing remains server-controlled.
+         */
+        ContactRequest: {
+            /** Current Page */
+            current_page: string;
+            /** Email */
+            email?: string | null;
+            /** Message */
+            message: string;
+            /** Name */
+            name?: string | null;
+            /** Scan Id */
+            scan_id?: string | null;
+            /**
+             * Website
+             * @default
+             */
+            website: string;
+        };
+        /** ContactResponse */
+        ContactResponse: {
+            /**
+             * Status
+             * @default accepted
+             * @constant
+             */
+            status: "accepted";
+        };
+        /**
          * DesignPayload
          * @description Recreation-oriented design data. coverage reports sample quality.
          */
@@ -379,13 +498,19 @@ export interface components {
          * @description Machine-readable error identity, shared by problem responses and scan errors.
          * @enum {string}
          */
-        ErrorCode: "INVALID_REQUEST" | "INVALID_URL" | "BLOCKED_TARGET" | "ROBOTS_DISALLOWED" | "DNS_FAILURE" | "CONNECT_FAILURE" | "TLS_FAILURE" | "NAVIGATION_TIMEOUT" | "BROWSER_UNAVAILABLE" | "ACCESS_RESTRICTED" | "BUDGET_EXHAUSTED" | "MISSING_EVIDENCE" | "ANALYZER_FAILED" | "ANALYZER_TIMEOUT" | "SCAN_NOT_FOUND" | "RESULT_EXPIRED" | "SCAN_IN_PROGRESS" | "RATE_LIMITED" | "AI_DISABLED" | "INTERNAL_ERROR";
+        ErrorCode: "INVALID_REQUEST" | "INVALID_URL" | "BLOCKED_TARGET" | "ROBOTS_DISALLOWED" | "DNS_FAILURE" | "CONNECT_FAILURE" | "TLS_FAILURE" | "NAVIGATION_TIMEOUT" | "BROWSER_UNAVAILABLE" | "ACCESS_RESTRICTED" | "BUDGET_EXHAUSTED" | "MISSING_EVIDENCE" | "ANALYZER_FAILED" | "ANALYZER_TIMEOUT" | "SCAN_NOT_FOUND" | "RESULT_EXPIRED" | "SCAN_IN_PROGRESS" | "RATE_LIMITED" | "CONTACT_UNAVAILABLE" | "AI_DISABLED" | "INTERNAL_ERROR";
         /**
          * EvidenceKind
          * @description What kind of observation an :class:`~weblens.domain.evidence.EvidenceRef` points at.
          * @enum {string}
          */
         EvidenceKind: "http_header" | "http_status" | "redirect_hop" | "html_element" | "html_attribute" | "meta_tag" | "inline_script" | "script_url" | "stylesheet_url" | "runtime_global" | "computed_style" | "loaded_font" | "cookie" | "tls_connection" | "dns_record" | "robots_directive" | "network_request" | "performance_entry" | "axe_result" | "console_message" | "dom_measurement" | "research_source" | "ai_reasoning";
+        /**
+         * EvidenceQuality
+         * @description Quality band for a section or the overall scan.
+         * @enum {string}
+         */
+        EvidenceQuality: "high" | "medium" | "low" | "failed";
         /**
          * EvidenceRef
          * @description A pointer to the observation that supports a finding, with a quotable excerpt.
@@ -561,6 +686,14 @@ export interface components {
             /** Uptime Seconds */
             uptime_seconds: number;
         };
+        /**
+         * HoneypotRequest
+         * @description Permissive decoy shape so bots are trapped before ordinary-field validation.
+         */
+        HoneypotRequest: {
+            /** Website */
+            website: string;
+        };
         /** HreflangEntry */
         HreflangEntry: {
             /** Href */
@@ -580,6 +713,74 @@ export interface components {
             sitemaps?: string[];
             /** X Robots Tag */
             x_robots_tag?: string | null;
+        };
+        /**
+         * IntelligenceRequest
+         * @description Request body for the AI intelligence fallback.
+         */
+        IntelligenceRequest: {
+            /**
+             * Additional Context
+             * @description Optional user-provided public context (engineering blog URLs, GitHub repos, etc.)
+             */
+            additional_context?: string | null;
+            /**
+             * Sections
+             * @description Sections to enhance with AI. None means all sections where AI is recommended.
+             */
+            sections?: components["schemas"]["SectionKey"][] | null;
+        };
+        /**
+         * IntelligenceResponse
+         * @description Response from the AI intelligence fallback.
+         */
+        IntelligenceResponse: {
+            /** Findings Added */
+            findings_added: number;
+            /** Limitations */
+            limitations?: string[];
+            /**
+             * Mode
+             * @description Analysis mode. Always 'ai_intelligence_fallback' for this endpoint.
+             * @default ai_intelligence_fallback
+             */
+            mode: string;
+            quality_after?: components["schemas"]["ScanQuality"] | null;
+            quality_before?: components["schemas"]["ScanQuality"] | null;
+            /** Research Available */
+            research_available: boolean;
+            /** Research Performed */
+            research_performed: boolean;
+            /** Scan Id */
+            scan_id: string;
+            /** Sections Enhanced */
+            sections_enhanced: components["schemas"]["SectionKey"][];
+        };
+        /**
+         * IntelligenceStatus
+         * @description Status of the AI intelligence run.
+         */
+        IntelligenceStatus: {
+            /**
+             * Available
+             * @description Whether AI intelligence is configured and available.
+             */
+            available: boolean;
+            /**
+             * Inference Available
+             * @description Whether an AI inference provider is configured.
+             */
+            inference_available: boolean;
+            /**
+             * Reason
+             * @description Explanation when AI is not available.
+             */
+            reason?: string | null;
+            /**
+             * Research Available
+             * @description Whether a search provider is configured.
+             */
+            research_available: boolean;
         };
         /**
          * Interpretation
@@ -864,7 +1065,7 @@ export interface components {
             timezone: string;
             /**
              * User Agent
-             * @default WebLens/0.1.0 (+https://github.com/weblens; passive website analyzer; respects robots.txt)
+             * @default ReverseX/0.1.0 (+https://github.com/weblens; passive website analyzer; respects robots.txt)
              */
             user_agent: string;
             viewport?: components["schemas"]["Viewport"];
@@ -1036,6 +1237,29 @@ export interface components {
             sections?: components["schemas"]["SectionKey"][] | null;
             viewport?: components["schemas"]["Viewport"];
         };
+        /**
+         * ScanQuality
+         * @description Overall scan quality assessment across all four sections.
+         */
+        ScanQuality: {
+            /**
+             * Ai Fallback Available
+             * @description Whether at least one section would benefit from AI fallback.
+             */
+            ai_fallback_available: boolean;
+            /**
+             * Ai Fallback Sections
+             * @description Sections where AI fallback is recommended.
+             */
+            ai_fallback_sections?: components["schemas"]["SectionKey"][];
+            overall: components["schemas"]["EvidenceQuality"];
+            /** Overall Score */
+            overall_score: number;
+            /** Sections */
+            sections: {
+                [key: string]: components["schemas"]["SectionQuality"];
+            };
+        };
         /** ScanRequest */
         ScanRequest: {
             options?: components["schemas"]["ScanOptions"];
@@ -1095,6 +1319,36 @@ export interface components {
             unavailable_reason?: string | null;
         };
         /**
+         * SectionQuality
+         * @description Quality assessment for one section.
+         */
+        SectionQuality: {
+            /** Ai Fallback Recommended */
+            ai_fallback_recommended: boolean;
+            /** Analyzers Completed */
+            analyzers_completed: number;
+            /** Analyzers Total */
+            analyzers_total: number;
+            /** Findings Inferred */
+            findings_inferred: number;
+            /** Findings Negative */
+            findings_negative: number;
+            /** Findings Verified */
+            findings_verified: number;
+            quality: components["schemas"]["EvidenceQuality"];
+            /**
+             * Reason
+             * @description Human-readable explanation of the quality assessment.
+             */
+            reason: string;
+            /**
+             * Score
+             * @description Numeric score 0-100.
+             */
+            score: number;
+            section: components["schemas"]["SectionKey"];
+        };
+        /**
          * SectionSet
          * @description The four V2 report sections.
          */
@@ -1108,7 +1362,7 @@ export interface components {
          * SectionStatus
          * @enum {string}
          */
-        SectionStatus: "complete" | "partial" | "unavailable" | "not_implemented" | "skipped";
+        SectionStatus: "complete" | "partial" | "insufficient_evidence" | "unavailable" | "not_implemented" | "skipped";
         /** Section[DesignPayload] */
         Section_DesignPayload_: {
             data?: components["schemas"]["DesignPayload"] | null;
@@ -1301,6 +1555,24 @@ export interface components {
          * @enum {string}
          */
         StageStatus: "pending" | "running" | "completed" | "failed" | "skipped";
+        /** StatsResponse */
+        StatsResponse: {
+            /**
+             * Counting Since
+             * @description When counting began, or null if nothing has been counted yet.
+             */
+            counting_since?: string | null;
+            /**
+             * Enabled
+             * @description False when the deployment disabled counting; total_scans is then 0.
+             */
+            enabled: boolean;
+            /**
+             * Total Scans
+             * @description Completed scans recorded by this deployment. Aggregate only.
+             */
+            total_scans: number;
+        };
         /** StructuredDataBlock */
         StructuredDataBlock: {
             /** Format */
@@ -1439,6 +1711,53 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    contact_api_contact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoneypotRequest"] | components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description The direct client has sent too many support requests. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Support contact is disabled or temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     explain_api_v1_ai_explain_post: {
         parameters: {
             query?: never;
@@ -1654,6 +1973,86 @@ export interface operations {
             };
         };
     };
+    run_intelligence_api_v1_scans__scan_id__intelligence_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntelligenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceResponse"];
+                };
+            };
+            /** @description The scan has not finished yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description No AI provider is configured. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    intelligence_status_api_v1_scans__scan_id__intelligence_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelligenceStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_result_api_v1_scans__scan_id__result_get: {
         parameters: {
             query?: never;
@@ -1695,6 +2094,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stats_api_v1_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsResponse"];
                 };
             };
         };

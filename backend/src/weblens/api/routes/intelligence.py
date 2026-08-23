@@ -41,8 +41,7 @@ class IntelligenceRequest(BaseModel):
         default=None,
         max_length=5000,
         description=(
-            "Optional user-provided public context "
-            "(engineering blog URLs, GitHub repos, etc.)"
+            "Optional user-provided public context (engineering blog URLs, GitHub repos, etc.)"
         ),
     )
 
@@ -55,9 +54,7 @@ class IntelligenceStatus(BaseModel):
     available: bool = Field(description="Whether AI intelligence is configured and available.")
     research_available: bool = Field(description="Whether a search provider is configured.")
     inference_available: bool = Field(description="Whether an AI inference provider is configured.")
-    reason: str | None = Field(
-        default=None, description="Explanation when AI is not available."
-    )
+    reason: str | None = Field(default=None, description="Explanation when AI is not available.")
 
 
 class IntelligenceResponse(BaseModel):
@@ -183,10 +180,8 @@ async def run_intelligence(
     quality_after = enhanced_result.quality
 
     limitations = [
-        "AI-inferred findings are hypotheses based on "
-        "observable evidence and public research.",
-        "AI findings never carry 'verified' status — "
-        "they are always marked as 'ai_inferred'.",
+        "AI-inferred findings are hypotheses based on observable evidence and public research.",
+        "AI findings never carry 'verified' status — they are always marked as 'ai_inferred'.",
         "Private backend technologies, databases, and internal "
         "architectures cannot be determined from public observation.",
     ]
