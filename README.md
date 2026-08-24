@@ -16,10 +16,10 @@ DOM, runtime, and network evidence into a technical intelligence report.
 <br />
 
 <a href="https://reversex-weblens.vercel.app">
-  <img src="https://img.shields.io/badge/%20Live%20Demo-ReverseX-0b8f9c?style=for-the-badge" alt="Open ReverseX" />
+  <img src = "Open ReverseX" />
 </a>
 <a href="https://weblens-backend-uxtf.onrender.com/docs">
-  <img src="https://img.shields.io/badge/%20API%20Docs-FastAPI-111827?style=for-the-badge" alt="API Docs" />
+  <img src= "API Docs" />
 </a>
 
 <br /><br />
