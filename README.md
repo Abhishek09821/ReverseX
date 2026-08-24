@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://reversex-weblens.vercel.app">
-  <img src="frontend/public/reversex-wordmark-white.png" alt="ReverseX — Reverse engineer the web" width="520" />
+  <img src="https://raw.githubusercontent.com/Abhishek09821/weblens/main/frontend/brand/reversex-logo.png" alt="ReverseX — Reverse engineer the web" width="520" />
 </a>
 
 <br />
