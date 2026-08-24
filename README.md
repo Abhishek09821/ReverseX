@@ -17,11 +17,12 @@ DOM, runtime, and network evidence into a technical intelligence report.
 
 <p align="center">
   <a href="https://reversex-weblens.vercel.app">
-    <strong>🚀 Open ReverseX →</strong>
+    <strong> Open ReverseX →</strong>
   </a>
 </p>
 
 <br />
+
 | **Evidence-first** | **Deterministic detection** | **Browser-powered** | **No database in V1** |
 |:---:|:---:|:---:|:---:|
 | Every finding keeps provenance | AI does not invent facts | Real Playwright + Chromium | Results live in the browser |
