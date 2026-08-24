@@ -16,10 +16,10 @@ DOM, runtime, and network evidence into a technical intelligence report.
 <br />
 
 <a href="https://reversex-weblens.vercel.app">
-  <img src="https://img.shields.io/badge/🚀%20Live%20Demo-ReverseX-0b8f9c?style=for-the-badge" alt="Open ReverseX" />
+  <img src="https://img.shields.io/badge/%20Live%20Demo-ReverseX-0b8f9c?style=for-the-badge" alt="Open ReverseX" />
 </a>
 <a href="https://weblens-backend-uxtf.onrender.com/docs">
-  <img src="https://img.shields.io/badge/📚%20API%20Docs-FastAPI-111827?style=for-the-badge" alt="API Docs" />
+  <img src="https://img.shields.io/badge/%20API%20Docs-FastAPI-111827?style=for-the-badge" alt="API Docs" />
 </a>
 
 <br /><br />
@@ -40,14 +40,14 @@ It covers:
 
 | Area | What it looks at |
 |---|---|
-| 🎨 **Design & UI** | Color palette, typography, spacing, borders, radius, shadows, media, responsive signals, animation/transition clues and visual-system patterns |
-| ⚙️ **Technology Stack** | Frontend/runtime signals, styling frameworks, server/platform clues, CDN/hosting signals, resources, protocols, MIME types and third-party services |
-| 🛡️ **Security** | Response headers, CSP, cookie security attributes, TLS observations, mixed-content signals, public exposure indicators and documented security-posture rules |
-| ⚡ **Performance** | Resource breakdown, navigation timings, paint/LCP/CLS signals, long tasks, request composition and loading behaviour |
-| ♿ **Accessibility** | Semantic HTML, labels, ARIA usage, contrast-related signals and vendored **axe-core** analysis |
-| 🔎 **SEO** | Title/meta, canonical, robots, sitemap, Open Graph, structured data, headings, indexability signals and related metadata |
-| 🧱 **Architecture** | Hosting/CDN clues, DNS, server technology, edge behaviour and infrastructure fingerprints visible from public evidence |
-| 📡 **Network & Traffic** | Request ledger, DNS, redirects, protocols, headers, resource types, cache signals and supported public traffic observations |
+|  **Design & UI** | Color palette, typography, spacing, borders, radius, shadows, media, responsive signals, animation/transition clues and visual-system patterns |
+|  **Technology Stack** | Frontend/runtime signals, styling frameworks, server/platform clues, CDN/hosting signals, resources, protocols, MIME types and third-party services |
+|  **Security** | Response headers, CSP, cookie security attributes, TLS observations, mixed-content signals, public exposure indicators and documented security-posture rules |
+|  **Performance** | Resource breakdown, navigation timings, paint/LCP/CLS signals, long tasks, request composition and loading behaviour |
+|  **Accessibility** | Semantic HTML, labels, ARIA usage, contrast-related signals and vendored **axe-core** analysis |
+|  **SEO** | Title/meta, canonical, robots, sitemap, Open Graph, structured data, headings, indexability signals and related metadata |
+|  **Architecture** | Hosting/CDN clues, DNS, server technology, edge behaviour and infrastructure fingerprints visible from public evidence |
+|  **Network & Traffic** | Request ledger, DNS, redirects, protocols, headers, resource types, cache signals and supported public traffic observations |
 
 > **Unknown is a valid result.** If the evidence cannot establish something, ReverseX reports it as unknown/not determinable instead of turning assumptions into facts.
 
