@@ -16,29 +16,16 @@ DOM, runtime, and network evidence into a technical intelligence report.
 <br />
 
 <a href="https://reversex-weblens.vercel.app">
-  <img
-    src="https://raw.githubusercontent.com/Abhishek09821/weblens/main/frontend/public/reversex-icon.png"
-    alt="Open ReverseX"
-    width="42"
-  />
-  <br />
   <strong>Open ReverseX</strong>
 </a>
 
-&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;•&nbsp;&nbsp;
 
 <a href="https://weblens-backend-uxtf.onrender.com/docs">
-  <img
-    src="https://raw.githubusercontent.com/Abhishek09821/weblens/main/frontend/public/icon-192.png"
-    alt="API Docs"
-    width="42"
-  />
-  <br />
   <strong>API Docs</strong>
 </a>
 
 <br /><br />
-
 | **Evidence-first** | **Deterministic detection** | **Browser-powered** | **No database in V1** |
 |:---:|:---:|:---:|:---:|
 | Every finding keeps provenance | AI does not invent facts | Real Playwright + Chromium | Results live in the browser |
