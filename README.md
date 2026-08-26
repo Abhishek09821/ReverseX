@@ -17,7 +17,7 @@ DOM, runtime, and network evidence into a technical intelligence report.
 
 <p align="center">
   <a href="https://reversex-weblens.vercel.app">
-    <strong> Open ReverseX →</strong>
+    <strong> ReverseX Live →</strong>
   </a>
 </p>
 
