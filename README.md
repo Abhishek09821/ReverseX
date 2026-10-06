@@ -278,9 +278,4 @@ Software Engineer · Full-Stack Developer
 
 [LinkedIn](https://www.linkedin.com/in/abhishek-tiwari-3a3594300/)
 
-<div align="center">
 
-> **We observe. We don't assume.**  
-> **We prove. We don't guess.**
-
-</div>
