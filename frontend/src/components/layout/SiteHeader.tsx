@@ -209,7 +209,7 @@ export function SiteHeader() {
           )}
 
           <Button variant="ghost" size="sm" asChild className="hidden gap-1.5 sm:inline-flex">
-            <Link to="/history" aria-label="Stored scans">
+            <Link to="/history" aria-label="Reconstruction history">
               <HistoryIcon className="size-3.5" />
               <span className="text-xs">History</span>
             </Link>
@@ -322,14 +322,14 @@ export function SiteHeader() {
                   className="flex items-center gap-2 text-[0.9375rem] font-medium"
                 >
                   <HistoryIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                  Stored scans
+                  Reconstruction history
                 </Link>
               </li>
             </ul>
 
             <Button asChild className="mt-5 h-11 w-full rounded-full">
               <Link to="/#analyze" onClick={() => setDrawerOpen(false)}>
-                Analyze a Website
+                Analyze a Website or Repo
               </Link>
             </Button>
           </nav>

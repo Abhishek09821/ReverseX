@@ -4,42 +4,29 @@ import { BuildCapabilities } from '@/components/history/BuildCapabilities';
 
 /**
  * Methodology and limitations.
- *
- * Published in the product, not just the repository: a tool that makes claims about other
- * people's websites owes its users a plain account of how it reaches them and where it stops.
  */
 
-const VERDICTS = [
-  { term: 'Verified', detail: 'Direct evidence was observed in this scan.' },
-  { term: 'Strongly supported', detail: 'Multiple independent signals agree.' },
-  { term: 'Likely', detail: 'Good evidence, but not conclusive.' },
-  { term: 'Possible', detail: 'Plausible, on weak evidence.' },
-  {
-    term: 'Not detected',
-    detail:
-      'The expected signature was absent. This is not the same as unused: server-rendered, self-hosted, or heavily bundled technologies are frequently invisible from outside.',
-  },
-  {
-    term: 'Not publicly determinable',
-    detail: 'The property cannot reasonably be established from outside the site.',
-  },
-  { term: 'Unable to verify', detail: 'Required evidence was not collected or collection failed.' },
+const CONFIDENCE_LEVELS = [
+  { term: 'High', detail: 'Rich evidence — GitHub repos with comprehensive documentation and structure, or websites with clearly observable frontend technology.' },
+  { term: 'Medium', detail: 'Good evidence but some aspects inferred from patterns. Common for websites where server-side technology is not directly observable.' },
+  { term: 'Low', detail: 'Minimal evidence — sparse repos, minimal-JS sites, or sources where most implementation details are hidden from public view.' },
 ] as const;
 
 const LIMITS = [
-  'No offensive testing: no exploitation, credential attacks, authentication bypass, brute force, fuzzing, or destructive requests.',
-  'No crawling. One URL per scan, so findings describe that page and that moment only.',
-  'No authenticated, paywalled, or geo-restricted content, and no bypassing of bot protection or consent walls.',
-  'One cold run from one network location, so timing observations are lab conditions rather than field data.',
-  'Automated accessibility rules cover a subset of WCAG and are evidence inside Design, not a conformance certificate.',
-  'Scans are stored in this browser only. Deleting one is permanent because there is no server copy.',
+  'GitHub analysis covers only public repositories. Private repos, secrets, and environment variables are never accessible.',
+  'Website analysis is limited to one publicly reachable URL per analysis. No crawling, no authenticated pages.',
+  'Server-side technology (databases, backend frameworks) can only be identified when public signals expose them.',
+  'No offensive or invasive techniques: no credential attacks, authentication bypass, brute force, or destructive requests.',
+  'Reconstruction prompts describe observable structure and patterns, not proprietary business logic or private implementation.',
+  'Results are stored only in this browser. Deleting an analysis is permanent — there is no server copy.',
+  'The reconstruction prompt is a starting point for rebuilding, not a guarantee of identical output when used with an AI agent.',
 ] as const;
 
 const SECTIONS = [
-  { id: 'detection', label: 'How detection works' },
-  { id: 'verdicts', label: 'Verdict states' },
-  { id: 'ai', label: 'AI Intelligence' },
-  { id: 'security', label: 'Security posture' },
+  { id: 'how-it-works', label: 'How it works' },
+  { id: 'sources', label: 'Input sources' },
+  { id: 'confidence', label: 'Confidence levels' },
+  { id: 'output', label: 'Prompt output' },
   { id: 'limitations', label: 'Limitations' },
   { id: 'build', label: 'This build' },
 ] as const;
@@ -54,31 +41,58 @@ export function MethodologyRoute() {
             Methodology and limitations
           </h1>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            How ReverseX reaches its conclusions, and what it cannot tell you.
+            How ReverseX analyzes websites and repositories to generate reconstruction prompts, and what it cannot tell you.
           </p>
         </header>
 
-        <Block id="detection" title="How detection works">
+        <Block id="how-it-works" title="How it works">
           <p>
-            A scan collects evidence once: HTTP response headers, the served document, DNS and robots
-            observations, and — when a browser is available — the rendered DOM, computed styles,
-            timing entries, and the network ledger. Deterministic analyzers then read that evidence.
+            ReverseX accepts two input types: a publicly accessible website URL or a GitHub repository identifier. It then
+            collects all observable evidence, analyzes the structure and technology stack, and generates a single
+            comprehensive natural-language prompt.
           </p>
           <p>
-            Detection itself is not performed by a language model. Each finding carries the evidence
-            supporting it, and a claim without evidence cannot be constructed by the backend, so it
-            cannot reach a report.
+            For websites, evidence comes from the HTTP response, rendered DOM, CSS stylesheets, JavaScript files, network
+            requests, and observable visual patterns. For GitHub repositories, evidence comes from the file tree,
+            dependency files (package.json, requirements.txt, go.mod, etc.), README, configuration files, and code organization.
+          </p>
+          <p>
+            The final output is one polished prompt designed to be pasted directly into an AI coding agent. It describes
+            the architecture, technology choices, design patterns, component structure, and implementation approach.
           </p>
         </Block>
 
-        <Block id="verdicts" title="Verdict states">
+        <Block id="sources" title="Input sources">
           <p>
-            Every finding carries one verdict. Keeping absence and ignorance distinct from denial is
-            the whole point of the vocabulary.
+            ReverseX supports two source types:
+          </p>
+          <dl className="mt-4 divide-y divide-border/60 border-y border-border/60">
+            <div className="py-4 sm:grid sm:grid-cols-[13rem_1fr] sm:gap-6">
+              <dt className="text-sm font-medium text-foreground">Website URL</dt>
+              <dd className="mt-1 text-sm leading-6 sm:mt-0">
+                Any publicly reachable HTTP or HTTPS page. Enter as <code className="font-mono text-xs">example.com</code> or
+                a full URL. ReverseX visits the page as a normal browser would and collects observable evidence.
+              </dd>
+            </div>
+            <div className="py-4 sm:grid sm:grid-cols-[13rem_1fr] sm:gap-6">
+              <dt className="text-sm font-medium text-foreground">GitHub Repository</dt>
+              <dd className="mt-1 text-sm leading-6 sm:mt-0">
+                A public GitHub repository. Enter as <code className="font-mono text-xs">owner/repo</code>,{' '}
+                <code className="font-mono text-xs">github.com/owner/repo</code>, or a full GitHub URL. ReverseX uses the
+                GitHub API to analyze the repository structure, dependencies, and documentation.
+              </dd>
+            </div>
+          </dl>
+        </Block>
+
+        <Block id="confidence" title="Confidence levels">
+          <p>
+            Every reconstruction prompt carries a confidence level that reflects how much evidence was available.
+            This tells you how complete the analysis is before you hand the prompt to an AI agent.
           </p>
           <dl className="mt-6 divide-y divide-border/60 border-y border-border/60">
-            {VERDICTS.map(({ term, detail }) => (
-              <div key={term} className="py-4 sm:grid sm:grid-cols-[13rem_1fr] sm:gap-6">
+            {CONFIDENCE_LEVELS.map(({ term, detail }) => (
+              <div key={term} className="py-4 sm:grid sm:grid-cols-[8rem_1fr] sm:gap-6">
                 <dt className="text-sm font-medium text-foreground">{term}</dt>
                 <dd className="mt-1 text-sm leading-6 sm:mt-0">{detail}</dd>
               </div>
@@ -86,30 +100,32 @@ export function MethodologyRoute() {
           </dl>
         </Block>
 
-        <Block id="ai" title="AI Intelligence">
+        <Block id="output" title="Prompt output">
           <p>
-            Deterministic evidence comes first and can produce all four reports on its own. When a
-            completed scan has genuine evidence gaps and a research or inference provider is
-            configured, you may choose to run AI Intelligence.
+            The reconstruction prompt is a natural-language document, structured for AI coding agents. It typically includes:
           </p>
+          <ul className="mt-4 space-y-2">
+            {[
+              'Technology stack with version hints where available',
+              'Project structure and file organization',
+              'Architecture patterns and design decisions',
+              'Component or module breakdown',
+              'Styling approach and design system details',
+              'Key features and functionality to implement',
+              'Explicit limitations — what could not be determined',
+            ].map((item) => (
+              <li key={item} className="flex gap-3 text-sm leading-6">
+                <span
+                  className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/60"
+                  aria-hidden="true"
+                />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
           <p>
-            It researches public sources, correlates them with collected signals, and weighs
-            competing hypotheses. Its conclusions are labelled separately and never overwrite a
-            direct observation. AI does not gain visibility into private systems.
-          </p>
-        </Block>
-
-        <Block id="security" title="Observable security posture">
-          <p>
-            Security is the only scored report, because the presence and quality of observable
-            defensive configuration is genuinely useful to communicate. Every rule, weight, and band
-            is published, and rules that could not be evaluated are excluded from both sides of the
-            ratio.
-          </p>
-          <p>
-            It is not a vulnerability assessment, a penetration test, or a compliance rating, and it
-            cannot establish that a site is secure. No other report is scored, because a score for
-            design or technology would be an invented weighting presented as a measurement.
+            The prompt is designed to be copied as-is. You can also extend it with your own requirements before
+            passing it to an AI agent.
           </p>
         </Block>
 
@@ -134,16 +150,13 @@ export function MethodologyRoute() {
         <p className="mt-14 border-t border-border/60 pt-6 text-sm text-muted-foreground">
           Ready to try it?{' '}
           <Link to="/#analyze" className="text-primary underline-offset-4 hover:underline">
-            Analyze a website
+            Generate a reconstruction prompt
           </Link>
           .
         </p>
       </div>
 
-      <nav
-        aria-label="On this page"
-        className="sticky top-24 hidden h-fit lg:block"
-      >
+      <nav aria-label="On this page" className="sticky top-24 hidden h-fit lg:block">
         <p className="text-[0.6875rem] font-medium tracking-[0.1em] text-muted-foreground uppercase">
           On this page
         </p>

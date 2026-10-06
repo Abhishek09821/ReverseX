@@ -34,7 +34,6 @@ export function App() {
           <Routes>
             <Route path="/" element={<AnalyzeRoute />} />
             <Route path="/scan/:scanId" element={<ScanRoute />} />
-            <Route path="/scan/:scanId/:sectionKey" element={<ScanRoute />} />
             <Route path="/history" element={<HistoryRoute />} />
             <Route path="/methodology" element={<MethodologyRoute />} />
             {/* Kept so existing links and bookmarks do not break. */}

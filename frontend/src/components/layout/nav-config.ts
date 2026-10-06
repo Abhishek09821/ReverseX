@@ -40,9 +40,9 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: 'Overview',
         links: [
-          { label: 'What ReverseX does', href: '/#product', detail: 'Public evidence to intelligence' },
-          { label: 'Evidence and verdicts', href: '/#verdicts', detail: 'Confidence stays visible' },
-          { label: 'AI Intelligence', href: '/#ai-intelligence', detail: 'Used only for gaps' },
+          { label: 'What ReverseX does', href: '/#product', detail: 'Analysis to reconstruction prompt' },
+          { label: 'Confidence system', href: '/#confidence', detail: 'Know how complete the output is' },
+          { label: 'Prompt generation', href: '/#ai-intelligence', detail: 'One prompt, ready to use' },
         ],
       },
       {
@@ -62,11 +62,11 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: 'Pipeline',
         links: [
-          { label: 'Scan', href: '/#how-it-works', detail: 'Collect public evidence' },
-          { label: 'Detect', href: '/#how-it-works', detail: 'Deterministic fingerprinting' },
-          { label: 'Research', href: '/#how-it-works', detail: 'Public sources when needed' },
-          { label: 'Reason', href: '/#how-it-works', detail: 'Correlate and weigh hypotheses' },
-          { label: 'Verdict', href: '/#how-it-works', detail: 'Evidence, confidence, limits' },
+          { label: 'Analyze', href: '/#how-it-works', detail: 'Website URL or GitHub repo' },
+          { label: 'Detect', href: '/#how-it-works', detail: 'Technologies & patterns' },
+          { label: 'Understand', href: '/#how-it-works', detail: 'Map structure & architecture' },
+          { label: 'Synthesize', href: '/#how-it-works', detail: 'Combine all evidence' },
+          { label: 'Generate', href: '/#how-it-works', detail: 'One reconstruction prompt' },
         ],
       },
       {
@@ -79,24 +79,24 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: 'reports',
-    label: 'Reports',
+    id: 'features',
+    label: 'Features',
     href: '/#reports',
     columns: [
       {
-        title: 'The four reports',
+        title: 'What\'s analyzed',
         links: [
-          { label: 'Design', href: '/#reports', detail: 'Layout, type, color, motion' },
-          { label: 'Tech Stack', href: '/#reports', detail: 'Frontend to infrastructure' },
-          { label: 'Security', href: '/#reports', detail: 'Observable configuration' },
-          { label: 'Traffic', href: '/#reports', detail: 'Public popularity signals' },
+          { label: 'Website analysis', href: '/#reports', detail: 'DOM, CSS, JS, design system' },
+          { label: 'GitHub repositories', href: '/#reports', detail: 'Structure, deps, patterns' },
+          { label: 'Tech stack detection', href: '/#reports', detail: 'Frameworks & libraries' },
+          { label: 'Reconstruction prompt', href: '/#reports', detail: 'Full output format' },
         ],
       },
       {
         title: 'Output',
         links: [
-          { label: 'Report preview', href: '/#reports' },
-          { label: 'Stored scans', href: '/history', detail: 'Saved in this browser' },
+          { label: 'Prompt preview', href: '/#reports' },
+          { label: 'Reconstruction history', href: '/history', detail: 'Saved in this browser' },
         ],
       },
     ],

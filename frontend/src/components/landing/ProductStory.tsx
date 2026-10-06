@@ -14,67 +14,67 @@ import { SectionHeading } from './SectionHeading';
 const STAGES = [
   {
     icon: EyeIcon,
-    title: 'Observe the website',
-    detail: 'Open one public URL as a normal visitor and observe the response and rendered page.',
+    title: 'Collect evidence',
+    detail: 'Analyze website DOM, network, or GitHub repository structure and code.',
   },
   {
     icon: RadarIcon,
-    title: 'Collect evidence',
+    title: 'Detect technologies',
     detail:
-      'Capture browser evidence, document signals, network activity, DNS, TLS, headers, and cookies where available.',
+      'Identify frameworks, libraries, tech stack, dependencies, and architecture patterns.',
   },
   {
     icon: Code2Icon,
-    title: 'Identify technologies',
+    title: 'Analyze structure',
     detail:
-      'Use technical fingerprinting to identify frameworks, rendering, libraries, infrastructure, and integrations.',
+      'Understand component hierarchy, design patterns, file organization, and key features.',
   },
   {
     icon: SearchCheckIcon,
-    title: 'Research when necessary',
-    detail: 'Consult public technical information only when observed evidence needs context.',
+    title: 'Synthesize findings',
+    detail: 'Combine all evidence into a coherent understanding of how the system works.',
   },
   {
     icon: SparklesIcon,
-    title: 'Use AI only for gaps',
+    title: 'Generate prompt',
     detail:
-      'Offer AI-assisted reasoning only where evidence is incomplete, kept labelled and separate.',
+      'Create a comprehensive natural-language prompt that tells an AI how to rebuild it.',
   },
   {
     icon: FileCheck2Icon,
-    title: 'Produce transparent verdicts',
-    detail: 'Show evidence, sources, confidence, and limitations behind every conclusion.',
+    title: 'Deliver with context',
+    detail: 'Provide confidence scores, limitations, and metadata about the reconstruction.',
   },
 ] as const;
 
 const STEPS = [
   {
     icon: Globe2Icon,
-    title: 'Scan',
-    detail: 'Collect public browser and HTTP evidence from one reachable URL.',
+    title: 'Analyze',
+    detail: 'Collect evidence from website URLs or GitHub repository structure.',
   },
   {
     icon: RadarIcon,
     title: 'Detect',
     detail:
-      'Analyze DOM, CSS, JavaScript, network requests, fonts, headers, media, and runtime signals.',
+      'Identify technologies, frameworks, dependencies, and architecture patterns automatically.',
   },
   {
-    icon: SearchCheckIcon,
-    title: 'Research',
+    icon: Code2Icon,
+    title: 'Understand',
     detail:
-      'When required, research public engineering information, documentation, and other credible sources.',
+      'Map component relationships, design systems, and key features into a coherent model.',
   },
   {
     icon: SparklesIcon,
-    title: 'Reason',
+    title: 'Synthesize',
     detail:
-      'AI correlates the evidence and generates carefully labelled hypotheses. It is not the source of truth.',
+      'AI processes all evidence to build a complete understanding of structure and behavior.',
   },
   {
     icon: FileCheck2Icon,
-    title: 'Verdict',
-    detail: 'Produce transparent conclusions with confidence, evidence, and limitations.',
+    title: 'Generate',
+    detail: 'Output one polished prompt that tells another AI how to recreate the project.',
   },
 ] as const;
 
@@ -86,8 +86,8 @@ export function ProductStory() {
           <SectionHeading
             id="what-title"
             eyebrow="What ReverseX does"
-            title="From public evidence to technical intelligence."
-            description="Six restrained stages: observe the website, collect evidence, identify technologies, research public information when necessary, use AI only when evidence is incomplete, and produce transparent verdicts."
+            title="From code to reconstruction prompt."
+            description="Six stages: collect evidence from websites or GitHub, detect technologies, analyze structure, synthesize findings, generate a comprehensive prompt, and deliver it with confidence scores and limitations."
           />
 
           <ol className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
@@ -111,7 +111,7 @@ export function ProductStory() {
 
           <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
             <a href="#analyze" className="text-primary underline-offset-4 hover:underline">
-              Analyze a website
+              Generate a reconstruction prompt
             </a>
             <Link
               to="/methodology"
@@ -132,8 +132,8 @@ export function ProductStory() {
           <SectionHeading
             id="how-title"
             eyebrow="How it works"
-            title="Scan. Detect. Research. Reason. Verdict."
-            description="Deterministic evidence comes first. Public research and AI-assisted reasoning only clarify what the evidence leaves incomplete."
+            title="Analyze. Detect. Understand. Synthesize. Generate."
+            description="Analyze websites and GitHub repositories to understand their structure, then generate a single comprehensive prompt that tells an AI agent how to rebuild them."
           />
 
           <ol className="mt-12 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">

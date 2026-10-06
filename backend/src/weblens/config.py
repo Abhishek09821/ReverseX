@@ -135,6 +135,11 @@ class Settings(BaseSettings):
     contact_rate_limit_window_seconds: float = Field(default=3600.0, ge=1.0, le=86_400.0)
     contact_rate_limit_max_clients: int = Field(default=10_000, ge=100, le=100_000)
 
+    # --- GitHub analysis ---
+    github_token: str = Field(default="")
+    """Optional GitHub personal access token. Raises GitHub API rate limit from 60 to 5000
+    requests/hour. Required only for private repositories (not supported in V1)."""
+
     # --- Optional AI layer ---
     ai_provider: str = Field(default="none", pattern="^(none)$")
     """Only ``none`` is accepted in V1. The provider protocol exists; no implementation

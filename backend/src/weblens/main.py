@@ -20,23 +20,22 @@ from weblens.collection.browser_collector import BrowserEvidenceCollector
 from weblens.collection.target import TargetGuard
 from weblens.config import Settings, get_settings
 from weblens.logging import configure_logging, get_logger
-from weblens.orchestration import registry
 from weblens.orchestration.job_store import InMemoryJobStore, periodic_sweep
-from weblens.orchestration.service import ScanService
 from weblens.orchestration.stats import UsageCounter
+from weblens.reconstruction.service import ReconstructionService
 from weblens.version import ENGINE_VERSION
 
 logger = get_logger(__name__)
 
 DESCRIPTION = """
-Evidence-based website technical intelligence.
+ReverseX — GitReverse-style reconstruction prompt generator.
 
-Detection is deterministic and never performed by an AI model. Every asserted fact carries the
-evidence that supports it, and anything that cannot be established from observation is reported
-as not detected, not determinable, or unable to verify rather than guessed.
+Input a **website URL** or **GitHub repository** URL → ReverseX analyzes it →
+returns **one optimized, copy-paste-ready reconstruction prompt** for AI coding agents.
 
-Analysis is passive: ReverseX observes what a normal visit reveals. It does not test
-authentication, submit forms, fuzz inputs, or attempt to bypass access controls.
+Two input types are supported:
+- **Website URL** (`http://` or `https://`): crawls and analyzes the public page
+- **GitHub repository** (`github.com/owner/repo` or `owner/repo`): analyzes structure and stack
 """.strip()
 
 
@@ -45,15 +44,9 @@ def create_app(
     collector: Collector | None = None,
     guard: TargetGuard | None = None,
 ) -> FastAPI:
-    """Build the application.
-
-    ``collector`` and ``guard`` are injection seams for tests: a fake collector plus a guard with
-    a stubbed resolver let the whole pipeline and API be exercised with no network at all.
-    Production callers omit both and get :class:`HttpEvidenceCollector` with a real resolver.
-    """
+    """Build the application."""
     resolved = settings or get_settings()
     configure_logging(level=resolved.log_level, fmt=resolved.log_format)
-    registry.validate_registry()
 
     app = FastAPI(
         title="ReverseX API",
@@ -91,37 +84,27 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     override: Collector | None = getattr(app.state, "collector_override", None)
     collector: Collector = override or BrowserEvidenceCollector(settings, guard)
 
-    # V2 providers: research, inference, traffic (all optional, default to null/noop)
-    from weblens.ai.inference import get_inference_provider
-    from weblens.research.base import get_provider as get_search_provider
-
-    search_provider = get_search_provider(settings.search_provider)
-    inference_provider = get_inference_provider(settings.inference_provider)
-
     usage_counter = UsageCounter(settings.stats_path, enabled=settings.stats_enabled)
 
     app.state.target_guard = guard
     app.state.job_store = store
     app.state.collector = collector
     app.state.usage_counter = usage_counter
-    app.state.scan_service = ScanService(
+
+    # Wire up the reconstruction service (replaces the old ScanService)
+    reconstruction_service = ReconstructionService(
         settings,
-        store,
         guard,
         collector,
-        search_provider=search_provider,
-        inference_provider=inference_provider,
-        usage_counter=usage_counter,
     )
+    app.state.reconstruction_service = reconstruction_service
 
     sweeper = asyncio.create_task(periodic_sweep(store), name="weblens-job-sweeper")
-    implemented = sum(1 for entry in registry.all_entries() if entry.implemented)
+
     logger.info(
-        "weblens started",
+        "reversex started",
         extra={
             "engine_version": ENGINE_VERSION,
-            "analyzers_implemented": implemented,
-            "analyzers_declared": len(registry.all_entries()),
             "collection_mode": collector.collection_mode,
         },
     )
@@ -137,7 +120,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         sweeper.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper
-        logger.info("weblens stopped")
+        logger.info("reversex stopped")
 
 
 app = create_app()

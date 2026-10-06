@@ -1,56 +1,39 @@
 import type { DBSchema } from 'idb';
 
-import type { AnalysisResult, ScanStatus, SectionKey, SectionStatus } from '@/types/analysis';
+import type { ReconstructionResult, ScanStatus, SourceType } from '@/types/analysis';
 
-export const DB_NAME = 'weblens';
-export const DB_VERSION = 1;
+export const DB_NAME = 'reversex';
+export const DB_VERSION = 2;
 
 /** Shape version of stored records, independent of the IndexedDB integer version. */
-export const RECORD_SCHEMA_VERSION = '2.0';
+export const RECORD_SCHEMA_VERSION = '3.0';
 
 /**
  * Small projection that powers the scan library.
- *
- * Deliberately not the whole result: opening the library must not deserialize megabytes. Kept in
- * its own store so listing scans touches only kilobytes.
+ * Kept lean so listing never deserializes megabytes.
  */
 export interface ScanRecord {
   id: string;
-  requested_url: string;
+  source_url: string;
   normalized_url: string;
-  final_url: string | null;
-  host: string;
+  source_type: SourceType;
+  /** Short label: hostname for websites, "owner/repo" for GitHub. */
+  display_label: string;
   status: ScanStatus;
   created_at: string;
   saved_at: string;
   duration_ms: number | null;
   engine_version: string;
   schema_version: string;
-  section_statuses: Record<SectionKey, SectionStatus>;
-  /** `null` when the security section is not complete. The list shows "—", never a zero. */
-  security_percentage: number | null;
-  error_count: number;
-  finding_count: number;
-  has_screenshot: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  prompt_preview: string;
   result_bytes: number;
 }
 
 export interface ResultRecord {
   scan_id: string;
   schema_version: string;
-  result: AnalysisResult;
-}
-
-export interface ScreenshotItem {
-  label: string;
-  width: number;
-  height: number;
-  blob: Blob;
-}
-
-export interface ScreenshotRecord {
-  scan_id: string;
-  items: ScreenshotItem[];
+  result: ReconstructionResult;
 }
 
 export interface MetaRecord {
@@ -64,23 +47,20 @@ export interface ReverseXDb extends DBSchema {
     value: ScanRecord;
     indexes: {
       by_created_at: string;
-      by_host: string;
+      by_source_type: string;
       by_status: string;
       by_saved_at: string;
     };
   };
   results: { key: string; value: ResultRecord };
-  screenshots: { key: string; value: ScreenshotRecord };
   meta: { key: string; value: MetaRecord };
 }
 
-export const STORES = ['scans', 'results', 'screenshots', 'meta'] as const;
-export const DATA_STORES = ['scans', 'results', 'screenshots'] as const;
+export const STORES = ['scans', 'results', 'meta'] as const;
+export const DATA_STORES = ['scans', 'results'] as const;
 
 export interface PersistOutcome {
   saved: boolean;
-  screenshotsDropped: boolean;
-  /** Present when persistence degraded or failed, for honest reporting in the UI. */
   warning?: string;
 }
 
@@ -88,4 +68,11 @@ export interface QuarantinedScan {
   id: string;
   schema_version: string;
   reason: string;
+}
+
+export interface ScreenshotItem {
+  label: string;
+  width: number;
+  height: number;
+  blob: Blob;
 }

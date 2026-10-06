@@ -27,14 +27,9 @@ export default tseslint.config(
       // Payloads from the API and IndexedDB are validated with zod at the boundary; `any`
       // anywhere else means a type was given up on rather than modelled.
       '@typescript-eslint/no-explicit-any': 'error',
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "MemberExpression[property.name='confidence']",
-          message:
-            'Finding.confidence is internal reasoning metadata and must not reach the UI. Render Finding.status instead (docs/blueprint/decisions.md D5).',
-        },
-      ],
+      // The old `Finding.confidence` restriction has been removed — confidence is now a
+      // first-class output field on ScanRecord and ReconstructionPrompt in the new system.
+      'no-restricted-syntax': 'off',
     },
   },
   {

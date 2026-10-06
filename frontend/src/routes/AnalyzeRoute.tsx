@@ -33,8 +33,9 @@ export function AnalyzeRoute() {
   const library = useScanLibrary();
 
   const busy = isBusy(runner.phase);
-  const implementedCount =
-    capabilities.data?.analyzers.filter((entry) => entry.implemented).length ?? null;
+  const implementedCount = capabilities.data?.website_analysis || capabilities.data?.github_analysis
+    ? (capabilities.data.website_analysis ? 1 : 0) + (capabilities.data.github_analysis ? 1 : 0)
+    : null;
   const collectorStatus = health.isError
     ? 'Backend offline'
     : health.isLoading

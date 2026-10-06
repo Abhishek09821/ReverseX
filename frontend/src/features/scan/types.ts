@@ -1,10 +1,8 @@
 import type { ProblemDetail, ScanJobState } from '@/types/analysis';
 
 /**
- * Scan lifecycle as a discriminated union.
- *
- * A union rather than a set of booleans: "submitting and failed" is unrepresentable, and the
- * progress component can switch exhaustively with no default branch to forget about.
+ * Reconstruction lifecycle as a discriminated union.
+ * A union rather than a set of booleans — "submitting and failed" is unrepresentable.
  */
 export type ScanPhase =
   | { kind: 'idle' }

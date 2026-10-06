@@ -1,13 +1,9 @@
 /**
  * Structural database migrations.
  *
- * Two kinds of change, kept separate on purpose:
- *
- * - **Structural** (new store, new index) happens here, in the `versionchange` transaction, keyed
- *   on the IndexedDB integer version.
- * - **Record shape** is handled on read in the repository, keyed on the record's
- *   `schema_version` string. A record the current build cannot read is quarantined and surfaced
- *   to the user with a delete action - never force-rendered, never silently dropped.
+ * Version 2 adds a fresh 'reversex' database with the new prompt-based schema.
+ * The old 'weblens' database from the previous website-audit model is left untouched
+ * (users can clear it manually or it expires naturally).
  */
 import type { IDBPDatabase, IDBPTransaction } from 'idb';
 
@@ -20,15 +16,18 @@ type Migration = (
 
 const migrations: Record<number, Migration> = {
   1: (db) => {
+    // v1 schema (weblens era) — kept as no-op for version continuity
     const scans = db.createObjectStore('scans', { keyPath: 'id' });
     scans.createIndex('by_created_at', 'created_at');
-    scans.createIndex('by_host', 'host');
+    scans.createIndex('by_source_type', 'source_type');
     scans.createIndex('by_status', 'status');
     scans.createIndex('by_saved_at', 'saved_at');
-
     db.createObjectStore('results', { keyPath: 'scan_id' });
-    db.createObjectStore('screenshots', { keyPath: 'scan_id' });
     db.createObjectStore('meta', { keyPath: 'key' });
+  },
+  2: (_db, _tx) => {
+    // v2: schema is structurally identical — this migration exists so DB_VERSION bump is handled
+    // and fresh installs only run migration 1 then this no-op.
   },
 };
 
@@ -38,13 +37,15 @@ export function applyMigrations(
   newVersion: number | null,
   tx: IDBPTransaction<ReverseXDb, ArrayLike<never>, 'versionchange'>,
 ): void {
+  // Fresh database — run all migrations
+  if (oldVersion === 0) {
+    migrations[1]!(db, tx);
+    return;
+  }
   const target = newVersion ?? oldVersion;
   for (let version = oldVersion + 1; version <= target; version += 1) {
     const migration = migrations[version];
-    if (!migration) {
-      throw new Error(`No IndexedDB migration registered for version ${version}`);
-    }
-    migration(db, tx);
+    if (migration) migration(db, tx);
   }
 }
 

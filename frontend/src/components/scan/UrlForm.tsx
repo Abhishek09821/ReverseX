@@ -68,7 +68,7 @@ export function UrlForm({
           prominent && 'text-xs tracking-[0.12em] text-muted-foreground uppercase',
         )}
       >
-        Website URL
+        Website URL or GitHub Repository
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
@@ -78,7 +78,7 @@ export function UrlForm({
           inputMode="url"
           autoComplete="url"
           spellCheck={false}
-          placeholder="example.com"
+          placeholder="example.com or owner/repo"
           value={value}
           disabled={disabled}
           aria-invalid={error ? true : undefined}
@@ -101,7 +101,7 @@ export function UrlForm({
         </Button>
       </div>
       <p id={hintId} className="text-xs text-muted-foreground">
-        Publicly reachable http:// or https:// pages only. Press <kbd className="font-mono">/</kbd>{' '}
+        Enter a website URL (http:// or https://) or GitHub repository (github.com/owner/repo or owner/repo). Press <kbd className="font-mono">/</kbd>{' '}
         to focus this field.
       </p>
       <p

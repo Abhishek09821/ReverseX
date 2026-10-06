@@ -9,7 +9,7 @@ describe('UrlForm', () => {
     const onSubmit = vi.fn();
     render(<UrlForm onSubmit={onSubmit} />);
 
-    await userEvent.type(screen.getByLabelText('Website URL'), 'example.com');
+    await userEvent.type(screen.getByLabelText('Website URL or GitHub Repository'), 'example.com');
     await userEvent.click(screen.getByRole('button', { name: /analyze/i }));
 
     expect(onSubmit).toHaveBeenCalledWith('example.com');
@@ -19,17 +19,17 @@ describe('UrlForm', () => {
     const onSubmit = vi.fn();
     render(<UrlForm onSubmit={onSubmit} />);
 
-    await userEvent.type(screen.getByLabelText('Website URL'), 'localhost');
+    await userEvent.type(screen.getByLabelText('Website URL or GitHub Repository'), 'localhost');
     await userEvent.click(screen.getByRole('button', { name: /analyze/i }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/publicly reachable/i);
-    expect(screen.getByLabelText('Website URL')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent(/publicly reachable|not a valid/i);
+    expect(screen.getByLabelText('Website URL or GitHub Repository')).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('does not shout at the user before they have finished typing', async () => {
     render(<UrlForm onSubmit={vi.fn()} />);
-    await userEvent.type(screen.getByLabelText('Website URL'), 'exa');
+    await userEvent.type(screen.getByLabelText('Website URL or GitHub Repository'), 'exa');
 
     // Untouched-and-incomplete input shows no error yet; the live region stays empty.
     expect(screen.getByRole('alert')).toHaveTextContent('');
@@ -42,13 +42,13 @@ describe('UrlForm', () => {
 
   it('disables input while a scan is running', () => {
     render(<UrlForm onSubmit={vi.fn()} disabled />);
-    expect(screen.getByLabelText('Website URL')).toBeDisabled();
+    expect(screen.getByLabelText('Website URL or GitHub Repository')).toBeDisabled();
     expect(screen.getByRole('button', { name: /analyzing/i })).toBeDisabled();
   });
 
   it('focuses the field when "/" is pressed', async () => {
     render(<UrlForm onSubmit={vi.fn()} />);
-    const input = screen.getByLabelText('Website URL');
+    const input = screen.getByLabelText('Website URL or GitHub Repository');
 
     expect(input).not.toHaveFocus();
     await userEvent.keyboard('/');

@@ -1,28 +1,30 @@
-import { SparklesIcon } from 'lucide-react';
+import { BrainCircuitIcon, FileCodeIcon, FolderGitIcon, GlobeIcon, SparklesIcon } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { SectionHeading } from './SectionHeading';
 
-const INVESTIGATION_STEPS = [
+const SYNTHESIS_STEPS = [
   {
-    title: 'Public-source research',
-    detail: 'Review relevant public documentation, disclosures, and technical information.',
+    title: 'Gather evidence',
+    detail: 'Collect all observable signals from the website or GitHub repository.',
   },
   {
-    title: 'Correlation',
-    detail: 'Compare that research against the evidence and signals already collected.',
+    title: 'Detect technology',
+    detail: 'Identify frameworks, libraries, and architecture patterns from the evidence.',
   },
   {
-    title: 'Competing hypotheses',
-    detail: 'Weigh plausible alternatives instead of forcing one confident explanation.',
+    title: 'Map structure',
+    detail: 'Understand component hierarchy, file organization, and design patterns.',
   },
   {
-    title: 'Verdict',
-    detail: 'Return a labelled conclusion with confidence, evidence, sources, and limitations.',
+    title: 'Generate prompt',
+    detail: 'Synthesize all findings into one natural-language reconstruction prompt.',
   },
 ] as const;
 
-const INPUTS = ['Observed evidence', 'Public research', 'Technical signals'] as const;
+const SOURCE_TYPES = [
+  { icon: GlobeIcon, label: 'Website URL', detail: 'example.com or https://…' },
+  { icon: FolderGitIcon, label: 'GitHub Repository', detail: 'owner/repo or github.com/…' },
+] as const;
 
 export function AIIntelligenceSection() {
   return (
@@ -36,47 +38,40 @@ export function AIIntelligenceSection() {
           <div className="min-w-0">
             <SectionHeading
               id="ai-intelligence-title"
-              eyebrow="AI Intelligence"
-              title="When the evidence isn’t enough, ReverseX investigates."
-              description="Normal evidence comes first. If it is insufficient, you can choose to run AI Intelligence. It researches public sources, correlates them with observed signals, weighs competing hypotheses, and produces a transparent verdict."
+              eyebrow="Prompt Generation"
+              title="One input. One polished prompt. Ready for any AI agent."
+              description="Enter a website URL or a GitHub repository. ReverseX analyzes the public structure and generates a comprehensive reconstruction prompt you can paste directly into Claude, GPT-4, or any other AI coding agent."
             />
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button variant="outline" size="sm" disabled aria-describedby="ai-control-note">
-                <SparklesIcon className="size-3.5" aria-hidden="true" />
-                Run AI Intelligence
-              </Button>
-            </div>
-            <p id="ai-control-note" className="mt-3 max-w-md text-xs leading-5 text-muted-foreground">
-              Illustrative control. The real action appears inside an eligible completed scan when a
-              research or inference provider is configured.
-            </p>
-          </div>
-
-          <div className="min-w-0">
-            {/* Inputs → reasoning → verdict, stacked on phones, stepped on desktop. */}
-            <div className="rounded-xl border border-border bg-card p-5 sm:p-7">
-              <ul className="grid gap-2 sm:grid-cols-3">
-                {INPUTS.map((input) => (
-                  <li
-                    key={input}
-                    className="rounded-lg bg-secondary/50 px-3 py-2.5 text-center text-xs font-medium"
-                  >
-                    {input}
+            <div className="mt-8 rounded-xl border border-border bg-card p-5">
+              <p className="text-xs font-medium tracking-[0.1em] text-muted-foreground uppercase">
+                Accepted inputs
+              </p>
+              <ul className="mt-4 space-y-3">
+                {SOURCE_TYPES.map(({ icon: Icon, label, detail }) => (
+                  <li key={label} className="flex items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-secondary/50 text-primary">
+                      <Icon className="size-3.5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{detail}</p>
+                    </div>
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
 
-              <div className="my-3 flex items-center gap-3" aria-hidden="true">
-                <span className="h-px flex-1 bg-border" />
-                <span className="font-mono text-[0.625rem] tracking-[0.14em] text-muted-foreground uppercase">
-                  AI reasoning
-                </span>
-                <span className="h-px flex-1 bg-border" />
+          <div className="min-w-0">
+            <div className="rounded-xl border border-border bg-card p-5 sm:p-7">
+              <div className="flex items-center gap-2">
+                <BrainCircuitIcon className="size-4 text-primary" aria-hidden="true" />
+                <span className="text-sm font-medium">Synthesis pipeline</span>
               </div>
 
-              <ol className="space-y-3">
-                {INVESTIGATION_STEPS.map(({ title, detail }, index) => (
+              <ol className="mt-5 space-y-3">
+                {SYNTHESIS_STEPS.map(({ title, detail }, index) => (
                   <li key={title} className="grid grid-cols-[1.5rem_1fr] gap-3">
                     <span className="font-mono text-[0.625rem] text-primary tabular-nums">
                       {String(index + 1).padStart(2, '0')}
@@ -89,8 +84,21 @@ export function AIIntelligenceSection() {
                 ))}
               </ol>
 
-              <p className="mt-5 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-center text-xs font-medium">
-                Verdict, with evidence and limitations attached
+              <div className="mt-6 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                <div className="flex items-center gap-2">
+                  <FileCodeIcon className="size-3.5 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-medium">Output</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  One comprehensive natural-language prompt describing the full architecture, tech
+                  stack, design system, and implementation approach — with confidence score and
+                  limitations.
+                </p>
+              </div>
+
+              <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <SparklesIcon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                Paste the prompt into any AI coding agent to start rebuilding.
               </p>
             </div>
           </div>

@@ -4,44 +4,44 @@ import { SectionHeading } from './SectionHeading';
 
 const FAQS = [
   {
-    question: 'What does ReverseX analyze?',
-    answer: 'ReverseX analyzes one publicly reachable URL at a specific moment. It examines the public response, rendered browser evidence, technical fingerprints, TLS, headers, cookies, public research signals, and other observable evidence to produce Design, Tech Stack, Security, and Traffic reports. It does not assume that one page represents an entire domain.',
+    question: 'What does ReverseX do?',
+    answer: 'ReverseX analyzes websites and GitHub repositories to generate a single comprehensive reconstruction prompt. This prompt tells an AI coding agent exactly how to rebuild the analyzed project, including architecture, technologies, design patterns, and key features.',
   },
   {
-    question: 'Can ReverseX see a private backend?',
-    answer: 'No. ReverseX cannot access private backend code, repositories, internal services, authenticated systems, unpublished APIs, or infrastructure that exposes no public signal. It reports only observable public evidence and clearly marks what is not publicly determinable.',
+    question: 'What can ReverseX analyze?',
+    answer: 'ReverseX can analyze public website URLs (one page at a time) and GitHub repositories (public repos only). For websites, it examines DOM, CSS, JavaScript, network requests, and visual design. For GitHub repos, it analyzes the file structure, dependencies, README, and code organization.',
   },
   {
-    question: 'How does AI Intelligence work?',
-    answer: 'Normal evidence comes first. When that evidence is insufficient and the feature is available, the user can choose Run AI Intelligence. ReverseX then researches public sources and disclosed technical information, correlates them with collected signals, considers competing hypotheses, and returns a labeled verdict with confidence, evidence, sources, and limitations. AI assists reasoning; it is not the source of truth.',
+    question: 'Can ReverseX see private repositories or backend code?',
+    answer: 'No. ReverseX can only analyze public GitHub repositories and publicly accessible websites. It cannot access private repos, authenticated systems, backend code, or internal APIs. The reconstruction prompt describes only what can be observed from public evidence.',
   },
   {
-    question: 'Can ReverseX detect React, Next.js, or Vue?',
-    answer: 'It can identify React, Next.js, Vue, and other technologies when observable signatures support the conclusion. Sites can remove, mask, or share signatures, so ReverseX reports an evidence-based verdict rather than guaranteeing detection. An expected signature that is absent is reported as not detected, not proof of non-use.',
+    question: 'How accurate are the reconstruction prompts?',
+    answer: 'Each prompt includes a confidence score that reflects the quality of available evidence. GitHub repositories typically have higher confidence since more information is available. Website analysis is limited to observable frontend code and behavior. All prompts include limitations that clarify what could not be determined.',
   },
   {
-    question: 'Can ReverseX identify a website’s database?',
-    answer: 'Usually not. A database is private backend infrastructure and cannot reasonably be established from outside unless a public endpoint, technical disclosure, error, or other credible public signal reveals it. Without that evidence, the verdict is not publicly determinable; ReverseX does not guess.',
+    question: 'What technologies can ReverseX detect?',
+    answer: 'ReverseX can detect React, Vue, Next.js, Angular, Svelte, and other frameworks when signatures are present. For GitHub repos, it detects technologies from package.json, requirements.txt, go.mod, and other dependency files. It identifies build tools, UI libraries, and backend frameworks when evidence supports the conclusion.',
   },
   {
-    question: 'Is ReverseX a hacking or penetration-testing tool?',
-    answer: 'No. ReverseX performs passive, non-offensive analysis of publicly reachable pages. It does not exploit vulnerabilities, bypass authentication, defeat access controls, or replace an authorized penetration test, vulnerability assessment, or compliance audit.',
+    question: 'Can I use the prompt with AI coding agents?',
+    answer: 'Yes, that\'s exactly what it\'s designed for. Copy the generated prompt and paste it into any AI coding agent (Claude, GPT-4, etc.) to have it rebuild a similar project. The prompt includes all necessary context about architecture, tech stack, design patterns, and implementation details.',
   },
   {
-    question: 'Can I give ReverseX reports to an AI coding agent?',
-    answer: 'Yes. A report can give an AI coding agent structured context about observed design, technology, security, and public traffic signals, including evidence and limitations. This can improve implementation prompts, but the report does not grant the agent private source access or prove hidden implementation details.',
+    question: 'What\'s the difference between website and GitHub analysis?',
+    answer: 'Website analysis examines one public page: DOM structure, styles, scripts, network requests, and visual design. GitHub analysis examines the entire repository: file structure, code organization, dependencies, documentation, and detected patterns. GitHub typically provides more complete information for reconstruction.',
   },
   {
-    question: 'Why can AI-assisted conclusions be wrong?',
-    answer: 'Public information can be incomplete, outdated, ambiguous, or contradictory, and an AI model can misinterpret it. ReverseX reduces that risk by keeping observed evidence separate, showing sources and confidence, considering competing hypotheses, and preserving uncertainty in the verdict. Important conclusions should still be independently verified.',
+    question: 'Why might a prompt be incomplete?',
+    answer: 'Prompts may be incomplete when: websites use server-side rendering that hides structure, repositories lack documentation, private dependencies are used, or implementation details aren\'t publicly observable. All limitations are listed explicitly in the output so you know what\'s missing.',
   },
   {
-    question: 'Is a full-site crawl required?',
-    answer: 'No. ReverseX can analyze one public URL without crawling the whole site. The resulting evidence applies to the collected page and moment; it does not claim complete site-wide coverage. Additional pages can be analyzed separately when broader public evidence is needed.',
+    question: 'Does ReverseX store my data?',
+    answer: 'Results are stored only in your browser\'s local storage. The backend processes the analysis but doesn\'t permanently store results. You can delete your local analysis history at any time from the History page.',
   },
   {
-    question: 'Is AI always required?',
-    answer: 'No. Browser evidence and deterministic technical fingerprinting come first and can produce reports without AI. AI Intelligence is an optional, user-initiated investigation only when evidence is insufficient and the capability is available. Its conclusions remain labeled and do not replace direct evidence.',
+    question: 'Can ReverseX analyze the same site multiple times?',
+    answer: 'Yes. Each analysis captures the state at that specific moment. Websites change over time, and multiple analyses can track how a site evolves. Each reconstruction is saved separately in your local history.',
   },
 ] as const;
 
@@ -57,8 +57,8 @@ export function FaqSection() {
           <SectionHeading
             id="faq-title"
             eyebrow="FAQ"
-            title="Clear answers before you scan."
-            description="What outside observation, public research, and optional AI-assisted reasoning can — and cannot — establish."
+            title="Clear answers before you start."
+            description="What ReverseX can analyze, how reconstruction prompts work, and what to expect from the output."
           />
           <div className="min-w-0 divide-y divide-border border-t border-border">
             {FAQS.map(({ question, answer }, index) => (

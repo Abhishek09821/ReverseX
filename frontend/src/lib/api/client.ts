@@ -1,38 +1,29 @@
 /**
- * Typed API client.
+ * Typed API client — GitReverse-style reconstruction system.
  *
- * Every response passes through a zod schema before it reaches the app, so a contract mismatch
- * surfaces as a clear message at the boundary instead of `undefined` deep inside a component.
+ * Every response passes through a Zod schema before it reaches the app.
+ * All endpoints now target /api/v1/reconstruct.
  */
+import { z } from 'zod';
+
 import {
-  analysisResultSchema,
   capabilitiesSchema,
   healthSchema,
   problemDetailSchema,
-  scanAcceptedSchema,
-  scanJobStateSchema,
-  type AnalysisResult,
+  reconstructionAcceptedSchema,
+  reconstructionJobStateSchema,
+  reconstructionResultSchema,
   type Capabilities,
   type Health,
-  type IntelligenceResponse,
-  type IntelligenceStatus,
-  type ScanAccepted,
-  type ScanJobState,
-  type SectionKey,
+  type ReconstructionAccepted,
+  type ReconstructionJobState,
+  type ReconstructionResult,
 } from '@/types/analysis';
-import { z } from 'zod';
 
 import { ApiProblemError, ContractError, TransportError } from './errors';
 
-/** Same-origin by default: the Vite dev server proxies `/api` and `/health` to the backend. */
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 const API_V1 = `${API_BASE}/api/v1`;
-
-const contactResponseSchema = z
-  .object({
-    status: z.literal('accepted'),
-  })
-  .strict();
 
 const statsResponseSchema = z
   .object({
@@ -41,26 +32,21 @@ const statsResponseSchema = z
     enabled: z.boolean(),
   })
   .strict();
-
 export type Stats = z.infer<typeof statsResponseSchema>;
 
-export interface ScanRequestOptions {
-  include_screenshot?: boolean;
-  include_full_page_screenshot?: boolean;
-  sections?: SectionKey[] | null;
-}
+const contactResponseSchema = z.object({ status: z.literal('accepted') }).strict();
+export type ContactResponse = z.infer<typeof contactResponseSchema>;
 
 export interface ContactPayload {
   name?: string;
   email?: string;
   message: string;
-  /** Honeypot: legitimate clients leave this empty. */
   website: string;
   current_page: string;
   scan_id?: string;
 }
 
-export type ContactResponse = z.infer<typeof contactResponseSchema>;
+// ── Generic fetch helper ──────────────────────────────────────────────────────
 
 async function request<T>(
   path: string,
@@ -94,7 +80,7 @@ async function request<T>(
   if (!parsed.success) {
     throw new ContractError(
       'The response did not match the expected schema.',
-      parsed.error.issues.map((issue) => `${issue.path.join('.') || 'root'}: ${issue.message}`),
+      parsed.error.issues.map((i) => `${i.path.join('.') || 'root'}: ${i.message}`),
     );
   }
   return parsed.data;
@@ -112,15 +98,10 @@ async function toProblem(response: Response): Promise<Error> {
   return new ContractError(`The server responded ${response.status} in an unexpected format.`, []);
 }
 
-export const api = {
-  async contact(payload: ContactPayload, signal?: AbortSignal): Promise<ContactResponse> {
-    return request(`${API_BASE}/api/contact`, contactResponseSchema, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      signal,
-    });
-  },
+// ── Public API surface ────────────────────────────────────────────────────────
 
+export const api = {
+  // ── Health / meta ──────────────────────────────────────────────────────────
   async health(signal?: AbortSignal): Promise<Health> {
     return request(`${API_BASE}/health`, healthSchema, { signal });
   },
@@ -129,82 +110,46 @@ export const api = {
     return request(`${API_V1}/capabilities`, capabilitiesSchema, { signal });
   },
 
-  /** Aggregate scan count for this deployment. Aggregate only; no target data. */
   async stats(signal?: AbortSignal): Promise<Stats> {
     return request(`${API_V1}/stats`, statsResponseSchema, { signal });
   },
 
-  async createScan(url: string, options?: ScanRequestOptions): Promise<ScanAccepted> {
-    return request(`${API_V1}/scans`, scanAcceptedSchema, {
+  // ── Reconstruction (website URL or GitHub repo) ────────────────────────────
+  async createReconstruction(url: string): Promise<ReconstructionAccepted> {
+    return request(`${API_V1}/reconstruct`, reconstructionAcceptedSchema, {
       method: 'POST',
-      body: JSON.stringify(options ? { url, options } : { url }),
+      body: JSON.stringify({ url }),
     });
   },
 
-  async jobState(scanId: string, signal?: AbortSignal): Promise<ScanJobState> {
-    return request(`${API_V1}/scans/${scanId}`, scanJobStateSchema, { signal });
+  async jobState(scanId: string, signal?: AbortSignal): Promise<ReconstructionJobState> {
+    return request(`${API_V1}/reconstruct/${scanId}`, reconstructionJobStateSchema, { signal });
   },
 
-  async result(scanId: string, signal?: AbortSignal): Promise<AnalysisResult> {
-    return request(`${API_V1}/scans/${scanId}/result`, analysisResultSchema, { signal });
+  async result(scanId: string, signal?: AbortSignal): Promise<ReconstructionResult> {
+    return request(`${API_V1}/reconstruct/${scanId}/result`, reconstructionResultSchema, {
+      signal,
+    });
   },
 
-  /**
-   * Release the server-side copy once the result is stored locally.
-   *
-   * Failure is deliberately swallowed: the client already has the data, and the buffer expires on
-   * its own. Surfacing this would be alarming noise about something already handled.
-   */
-  async deleteScan(scanId: string): Promise<void> {
+  async deleteReconstruction(scanId: string): Promise<void> {
     try {
-      await fetch(`${API_V1}/scans/${scanId}`, { method: 'DELETE' });
+      await fetch(`${API_V1}/reconstruct/${scanId}`, { method: 'DELETE' });
     } catch {
-      // Intentionally ignored; see above.
+      // Intentionally ignored — the buffer expires on its own.
     }
   },
 
   eventsUrl(scanId: string): string {
-    return `${API_V1}/scans/${scanId}/events`;
+    return `${API_V1}/reconstruct/${scanId}/events`;
   },
 
-  /** Generate an AI summary of the analysis (optional, requires GROQ_API_KEY on backend). */
-  async summarize(result: unknown): Promise<{ available: boolean; summary: string | null; model: string | null; disclaimer: string }> {
-    try {
-      const response = await fetch(`${API_V1}/ai/summarize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result_data: result }),
-      });
-      if (!response.ok) return { available: false, summary: null, model: null, disclaimer: '' };
-      return await response.json();
-    } catch {
-      return { available: false, summary: null, model: null, disclaimer: '' };
-    }
-  },
-
-  /** Check if AI intelligence fallback is available for a scan. */
-  async intelligenceStatus(scanId: string): Promise<IntelligenceStatus> {
-    const response = await fetch(`${API_V1}/scans/${scanId}/intelligence/status`);
-    if (!response.ok) {
-      return { available: false, research_available: false, inference_available: false, reason: 'Failed to check status.' };
-    }
-    return response.json();
-  },
-
-  /** Run AI intelligence fallback on an existing scan. */
-  async runIntelligence(
-    scanId: string,
-    options?: { sections?: SectionKey[]; additional_context?: string },
-  ): Promise<IntelligenceResponse> {
-    const response = await fetch(`${API_V1}/scans/${scanId}/intelligence`, {
+  // ── Contact ────────────────────────────────────────────────────────────────
+  async contact(payload: ContactPayload, signal?: AbortSignal): Promise<ContactResponse> {
+    return request(`${API_BASE}/api/contact`, contactResponseSchema, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(options ?? {}),
+      body: JSON.stringify(payload),
+      signal,
     });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new ApiProblemError(body);
-    }
-    return response.json();
   },
 };

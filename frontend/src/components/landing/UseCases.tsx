@@ -4,29 +4,29 @@ import { SectionHeading } from './SectionHeading';
 
 const USE_CASES = [
   {
-    icon: Code2Icon,
-    title: 'Frontend Developers',
-    detail: 'Recreate design systems and responsive layouts from structured, observable evidence.',
+    icon: BotIcon,
+    title: 'AI Coding Agents',
+    detail: 'Feed the reconstruction prompt directly to Claude, GPT-4, or any AI agent to rebuild a similar project.',
   },
   {
-    icon: ServerCogIcon,
-    title: 'Backend Engineers',
-    detail: 'Understand observable APIs and infrastructure clues without claiming private access.',
+    icon: Code2Icon,
+    title: 'Frontend Developers',
+    detail: 'Understand how a site is built, then use the prompt as a starting point for your own implementation.',
   },
   {
     icon: WorkflowIcon,
-    title: 'Software Engineers',
-    detail: 'Understand how a public website is assembled across its visible technical layers.',
-  },
-  {
-    icon: BotIcon,
-    title: 'AI Coding Agents',
-    detail: 'Use structured reports to generate a high-fidelity implementation plan.',
+    title: 'Product Teams',
+    detail: 'Quickly assess competitor technology choices and patterns before making architectural decisions.',
   },
   {
     icon: SearchCheckIcon,
     title: 'Technical Researchers',
-    detail: 'Study publicly observable architecture and engineering practices, limits included.',
+    detail: 'Study publicly observable architecture and engineering practices with an auditable, confidence-scored output.',
+  },
+  {
+    icon: ServerCogIcon,
+    title: 'Open Source Contributors',
+    detail: 'Understand the structure of a GitHub project before contributing or forking it.',
   },
 ] as const;
 
@@ -41,8 +41,8 @@ export function UseCases() {
         <SectionHeading
           id="use-cases-title"
           eyebrow="Why this matters"
-          title="Public evidence for technical work."
-          description="Useful wherever observable evidence reduces uncertainty. It never provides or implies access to private source code."
+          title="From analysis to implementation."
+          description="Useful wherever understanding how something is built saves you time. The output is always a ready-to-use prompt, not a report to read."
         />
 
         <dl className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">

@@ -2,12 +2,11 @@ import { CheckIcon, Globe2Icon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 const PIPELINE = [
-  { step: 'URL', detail: 'One public page' },
-  { step: 'Evidence', detail: 'Response, DOM, network' },
-  { step: 'Detection', detail: 'Deterministic signatures' },
-  { step: 'Research', detail: 'Public sources, when needed' },
-  { step: 'Verdict', detail: 'Confidence and limits' },
-  { step: '4 Reports', detail: 'Design, Stack, Security, Traffic' },
+  { step: 'Input', detail: 'Website URL or GitHub repo' },
+  { step: 'Collect', detail: 'Gather evidence & analyze' },
+  { step: 'Analyze', detail: 'Detect technologies & patterns' },
+  { step: 'Synthesize', detail: 'Understand architecture' },
+  { step: 'Generate', detail: 'Create reconstruction prompt' },
 ] as const;
 
 export function LandingHero({
@@ -34,20 +33,19 @@ export function LandingHero({
         <div className="section-shell relative z-10 grid items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:py-24">
           <div className="min-w-0">
             <p className="text-xs font-medium tracking-[0.12em] text-primary uppercase">
-              AI-assisted website reverse-engineering intelligence
+              AI-powered reconstruction prompts
             </p>
 
             <h1
               id="hero-title"
               className="mt-5 text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-5xl lg:text-6xl"
             >
-              Reverse engineer any public website.
+              Turn any website or repo into a rebuild prompt.
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-              ReverseX combines browser evidence, technical fingerprinting, public research, and
-              AI-assisted reasoning into transparent verdicts — without pretending to see private
-              systems.
+              ReverseX analyzes websites and GitHub repositories to generate comprehensive
+              reconstruction prompts that tell AI coding agents exactly how to rebuild them.
             </p>
 
             <div id="analyze" className="mt-9 max-w-xl scroll-mt-24">
@@ -55,7 +53,7 @@ export function LandingHero({
             </div>
 
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2.5 text-xs text-muted-foreground">
-              {['One public URL', 'Passive by design', 'Stored in your browser'].map((item) => (
+              {['Websites & GitHub repos', 'Single prompt output', 'Stored in your browser'].map((item) => (
                 <li key={item} className="flex items-center gap-1.5">
                   <CheckIcon className="size-3.5 text-primary" aria-hidden="true" />
                   {item}
@@ -106,17 +104,17 @@ export function LandingHero({
 
                 <dl className="mt-6 grid grid-cols-3 gap-x-4 gap-y-4 border-t border-border/60 pt-5">
                   <Stat
-                    label="Websites analyzed"
+                    label="Total analyzed"
                     value={totalAnalyzed === null ? '—' : formatCount(totalAnalyzed)}
                     note="All time"
                   />
                   <Stat
-                    label="Your scans"
+                    label="Your prompts"
                     value={localAnalyzed === null ? '—' : formatCount(localAnalyzed)}
                     note="This browser"
                   />
                   <Stat
-                    label="Analyzers"
+                    label="Source types"
                     value={analyzerCount === null ? '—' : String(analyzerCount)}
                     note="Live"
                   />
@@ -124,7 +122,7 @@ export function LandingHero({
 
                 <p className="mt-5 flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2.5 text-xs text-muted-foreground">
                   <Globe2Icon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                  Publicly reachable HTTP(S) pages only
+                  Public websites & GitHub repos
                 </p>
               </div>
             </div>

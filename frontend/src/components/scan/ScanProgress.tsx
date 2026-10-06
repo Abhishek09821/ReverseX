@@ -14,12 +14,12 @@ const STAGE_ICONS: Record<StageStatus, typeof CheckIcon> = {
 };
 
 /**
- * Live scan progress.
+ * Live reconstruction progress.
  *
- * The bar is driven by the weight of stages the backend reports as finished. There is no
- * time-based animation filling the gap: while a stage is in flight, the elapsed clock keeps moving
- * and the bar does not. That is deliberate - a bar that advances on a timer is a fabricated claim
- * about work that has not happened.
+ * The bar is driven by the progress_percent the backend reports. There is no
+ * time-based animation filling the gap: while a stage is in flight, the elapsed clock keeps
+ * moving and the bar does not. That is deliberate — a bar that advances on a timer is a
+ * fabricated claim about work that has not happened.
  */
 export function ScanProgress({
   job,
@@ -41,17 +41,19 @@ export function ScanProgress({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <LoaderIcon className="size-4 animate-spin" aria-hidden="true" />
-          Analyzing <span className="font-mono font-normal text-muted-foreground">{url}</span>
+          Analyzing{' '}
+          <span className="font-mono font-normal text-muted-foreground truncate max-w-xs">
+            {url}
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div aria-live="polite" className="flex items-baseline justify-between gap-2 text-sm">
           <span>
-            {progress?.current_stage_label ?? (job ? 'Waiting for the next stage' : 'Submitting')}
+            {progress?.current_stage_label ?? (job ? 'Processing…' : 'Submitting…')}
           </span>
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {progress ? `${progress.stages_completed}/${progress.stages_total} stages` : ''} ·{' '}
-            {formatDuration(elapsedMs)}
+            {percent > 0 ? `${percent}%` : ''} · {formatDuration(elapsedMs)}
           </span>
         </div>
 
@@ -61,11 +63,11 @@ export function ScanProgress({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percent}
-          aria-label="Scan progress by completed stage weight"
+          aria-label="Reconstruction progress"
         >
           <div
             className="h-full rounded-full bg-primary transition-[width] duration-300"
-            style={{ width: `${percent}%` }}
+            style={{ width: `${Math.max(percent, job ? 5 : 0)}%` }}
           />
         </div>
 
@@ -78,8 +80,7 @@ export function ScanProgress({
         )}
 
         <p className="text-xs text-muted-foreground">
-          Progress reflects stages the backend has actually completed. It pauses while a stage is in
-          flight rather than estimating.
+          Generating your reconstruction prompt. This takes 10–60 seconds depending on the source.
         </p>
       </CardContent>
     </Card>

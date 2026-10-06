@@ -1,24 +1,19 @@
 /**
- * Scan lifecycle driver.
+ * Reconstruction lifecycle driver.
  *
- * Progress comes from real backend stage events over SSE, with polling as a fallback. There is no
- * timer-driven animation standing in for progress: when nothing has changed, the UI shows the
- * current stage and an elapsed clock, which is the honest thing to show.
- *
- * The final step matters as much as the scan: the result is fetched, validated, and written to
- * IndexedDB before navigation. The browser remains the system of record. A result is released from
- * the server immediately unless an evidence-quality gap and a configured provider make the
- * user-initiated AI Intelligence fallback available; that temporary copy is released after the
- * enhanced result is saved or by the server TTL.
+ * Progress arrives via SSE from the backend, with polling as a fallback.
+ * On completion the result is fetched, validated, and written to IndexedDB before navigation.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api, type ScanRequestOptions } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { describeError } from '@/lib/api/errors';
 import { getRepository } from '@/lib/db/repository';
-import type { ScreenshotItem } from '@/lib/db/types';
-import { validateUrlInput } from '@/lib/url-validation';
-import { scanJobStateSchema, type AnalysisResult, type ScanJobState } from '@/types/analysis';
+import { validateInput } from '@/lib/url-validation';
+import {
+  reconstructionJobStateSchema,
+  type ReconstructionJobState,
+} from '@/types/analysis';
 
 import type { ScanPhase } from './types';
 
@@ -26,7 +21,7 @@ const POLL_INTERVAL_MS = 700;
 
 export interface ScanRunner {
   phase: ScanPhase;
-  start: (url: string, options?: ScanRequestOptions) => Promise<void>;
+  start: (url: string) => Promise<void>;
   reset: () => void;
   elapsedMs: number;
 }
@@ -49,7 +44,7 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
     };
   }, []);
 
-  // Elapsed clock: shown instead of a fabricated percentage while a stage is in flight.
+  // Elapsed clock
   useEffect(() => {
     if (phase.kind !== 'running' && phase.kind !== 'submitting' && phase.kind !== 'persisting') {
       return;
@@ -69,20 +64,12 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
       setPhase({ kind: 'persisting', scanId });
       try {
         const result = await api.result(scanId);
-        const screenshots = await decodeScreenshots(result);
-        const outcome = await getRepository().persist(result, screenshots);
-        const retainForIntelligence = await shouldRetainForIntelligence(result);
-        if (!retainForIntelligence) {
-          await api.deleteScan(scanId);
-        }
+        await getRepository().persist(result);
+        // Always release the server copy after persisting
+        await api.deleteReconstruction(scanId);
 
         if (!mountedRef.current) return;
-        setPhase({
-          kind: 'ready',
-          scanId,
-          hasErrors: result.errors.length > 0 || result.scan.status === 'completed_with_errors',
-          ...(outcome.warning ? { warning: outcome.warning } : {}),
-        });
+        setPhase({ kind: 'ready', scanId, hasErrors: false });
         onReady?.(scanId);
       } catch (error) {
         if (!mountedRef.current) return;
@@ -91,7 +78,7 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
           kind: 'failed',
           problem: null,
           title: described.title,
-          detail: `${described.detail} The scan itself may have completed; it could not be stored locally.`,
+          detail: `${described.detail} The analysis itself may have completed; it could not be stored locally.`,
         });
       }
     },
@@ -100,16 +87,16 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
 
   const observe = useCallback(
     (scanId: string) => {
-      const applyJob = (job: ScanJobState) => {
+      const applyJob = (job: ReconstructionJobState) => {
         if (!mountedRef.current) return;
         if (job.status === 'failed' || job.status === 'cancelled') {
           settledRef.current = true;
           teardown(sourceRef, pollRef);
           setPhase({
             kind: 'failed',
-            problem: job.problem ?? null,
-            title: job.problem?.title ?? 'The scan did not complete',
-            detail: job.problem?.detail ?? 'The backend reported no further detail.',
+            problem: null,
+            title: 'The analysis did not complete',
+            detail: job.error_message ?? 'The backend reported no further detail.',
           });
           return;
         }
@@ -117,7 +104,12 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
           void finish(scanId);
           return;
         }
-        setPhase({ kind: 'running', scanId, job });
+        // Convert ReconstructionJobState to the ScanJobState shape ScanProgress expects
+        setPhase({
+          kind: 'running',
+          scanId,
+          job: toScanJobState(job),
+        });
       };
 
       const refresh = async () => {
@@ -151,17 +143,16 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
       sourceRef.current = source;
 
       source.addEventListener('snapshot', (event) => {
-        const parsed = scanJobStateSchema.safeParse(safeJson((event as MessageEvent<string>).data));
+        const raw = safeJson((event as MessageEvent<string>).data);
+        // SSE snapshot is in ScanJobState shape
+        const parsed = reconstructionJobStateSchema.safeParse(raw);
         if (parsed.success) applyJob(parsed.data);
       });
-      // Stage and progress frames are small; re-reading the job state keeps one source of truth
-      // for what the UI displays.
       source.addEventListener('stage', () => void refresh());
       source.addEventListener('progress', () => void refresh());
       source.addEventListener('done', () => void finish(scanId));
       source.addEventListener('error', () => void refresh());
       source.onerror = () => {
-        // The stream also "errors" on normal close after `done`; polling covers both cases.
         if (settledRef.current) return;
         source.close();
         sourceRef.current = null;
@@ -172,10 +163,10 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
   );
 
   const start = useCallback(
-    async (url: string, options?: ScanRequestOptions) => {
-      const validation = validateUrlInput(url);
+    async (url: string) => {
+      const validation = validateInput(url);
       if (!validation.valid) {
-        setPhase({ kind: 'invalid', message: validation.message ?? 'That URL cannot be analyzed.' });
+        setPhase({ kind: 'invalid', message: validation.message ?? 'That input cannot be analyzed.' });
         return;
       }
 
@@ -186,7 +177,7 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
       setPhase({ kind: 'submitting', url: validation.normalized ?? url });
 
       try {
-        const accepted = await api.createScan(validation.normalized ?? url, options);
+        const accepted = await api.createReconstruction(validation.normalized ?? url);
         if (!mountedRef.current) return;
         setPhase({ kind: 'running', scanId: accepted.scan_id, job: null });
         observe(accepted.scan_id);
@@ -214,6 +205,8 @@ export function useScanRunner(onReady?: (scanId: string) => void): ScanRunner {
   return { phase, start, reset, elapsedMs };
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function teardown(
   sourceRef: React.RefObject<EventSource | null>,
   pollRef: React.RefObject<number | null>,
@@ -226,15 +219,6 @@ function teardown(
   }
 }
 
-async function shouldRetainForIntelligence(result: AnalysisResult): Promise<boolean> {
-  if (!result.quality?.ai_fallback_available) return false;
-  try {
-    return (await api.intelligenceStatus(result.scan.scan_id)).available;
-  } catch {
-    return false;
-  }
-}
-
 function safeJson(raw: string): unknown {
   try {
     return JSON.parse(raw);
@@ -243,26 +227,24 @@ function safeJson(raw: string): unknown {
   }
 }
 
-/** Move screenshot bytes out of the result and into Blobs for the screenshots store. */
-async function decodeScreenshots(result: AnalysisResult): Promise<ScreenshotItem[]> {
-  const items: ScreenshotItem[] = [];
-  for (const shot of result.screenshots) {
-    try {
-      const binary = atob(shot.data_base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      items.push({
-        label: shot.label,
-        width: shot.width,
-        height: shot.height,
-        blob: new Blob([bytes], { type: shot.mime_type }),
-      });
-    } catch {
-      // A screenshot that cannot be decoded is dropped rather than stored corrupt. The record's
-      // `has_screenshot` flag then reflects reality.
-    }
-  }
-  return items;
+/** Adapts a ReconstructionJobState to the shape ScanProgress expects. */
+function toScanJobState(job: ReconstructionJobState): import('@/types/analysis').ScanJobState {
+  return {
+    scan_id: job.scan_id,
+    status: job.status,
+    requested_url: job.source_url,
+    created_at: job.created_at,
+    started_at: job.started_at ?? null,
+    finished_at: job.finished_at ?? null,
+    progress: {
+      current_stage: null,
+      current_stage_label: job.current_stage ?? null,
+      completed_weight: job.progress_percent,
+      total_weight: 100,
+      stages_completed: 0,
+      stages_total: 0,
+    },
+    stages: [],
+    problem: null,
+  };
 }
