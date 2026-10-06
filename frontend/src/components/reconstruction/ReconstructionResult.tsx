@@ -5,13 +5,18 @@ import {
   FolderGitIcon,
   GlobeIcon,
   InfoIcon,
-  TriangleAlertIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ReconstructionResult as ReconstructionResultType } from '@/types/analysis';
+
+const CONFIDENCE_LABEL: Record<string, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
 
 export function ReconstructionResult({ result }: { result: ReconstructionResultType }) {
   const [copied, setCopied] = useState(false);
@@ -22,7 +27,8 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isGitHub = result.source_type === 'github_repository';
+  // source_type values are 'website' | 'github_repo'
+  const isGitHub = result.metadata.source_type === 'github_repo';
   const SourceIcon = isGitHub ? FolderGitIcon : GlobeIcon;
 
   return (
@@ -36,7 +42,7 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2.5">
               <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {result.target_url}
+                {result.metadata.source_url}
               </h2>
               <Badge variant="verified" className="gap-1.5">
                 <SourceIcon className="size-3" />
@@ -71,13 +77,22 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
 
         {/* Metadata */}
         <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-border/60 pt-6 sm:grid-cols-4">
-          <Stat label="Confidence" value={`${Math.round(result.prompt.confidence * 100)}%`} />
-          <Stat label="Generated" value={new Date(result.timestamp).toLocaleDateString()} />
-          <Stat label="Status" value={result.scan.status.replace(/_/g, ' ')} />
+          <Stat
+            label="Confidence"
+            value={CONFIDENCE_LABEL[result.prompt.confidence] ?? result.prompt.confidence}
+          />
+          <Stat
+            label="Generated"
+            value={new Date(result.metadata.created_at).toLocaleDateString()}
+          />
+          <Stat
+            label="Status"
+            value={result.metadata.status.replace(/_/g, ' ')}
+          />
           {isGitHub && result.github_info && (
             <Stat
               label="Repository"
-              value={`${result.github_info.owner}/${result.github_info.name}`}
+              value={result.github_info.full_name}
             />
           )}
         </dl>
@@ -85,7 +100,10 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
 
       {/* GitHub repository info */}
       {isGitHub && result.github_info && (
-        <section className="reveal rounded-xl border border-border bg-card p-5 sm:p-6" style={{ animationDelay: '60ms' }}>
+        <section
+          className="reveal rounded-xl border border-border bg-card p-5 sm:p-6"
+          style={{ animationDelay: '60ms' }}
+        >
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <FolderGitIcon className="size-4 text-primary" aria-hidden="true" />
             Repository Information
@@ -113,7 +131,10 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
       )}
 
       {/* The reconstruction prompt */}
-      <section className="reveal rounded-xl border border-border bg-card p-5 sm:p-6" style={{ animationDelay: '120ms' }}>
+      <section
+        className="reveal rounded-xl border border-border bg-card p-5 sm:p-6"
+        style={{ animationDelay: '120ms' }}
+      >
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <FileCodeIcon className="size-4 text-primary" aria-hidden="true" />
           Full Reconstruction Prompt
@@ -126,7 +147,7 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
       </section>
 
       {/* Limitations */}
-      {result.limitations.length > 0 && (
+      {result.prompt.limitations.length > 0 && (
         <section
           className="reveal rounded-xl border border-border bg-card p-5 sm:p-6"
           style={{ animationDelay: '180ms' }}
@@ -140,7 +161,7 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
             Scope & Limitations
           </h3>
           <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {result.limitations.map((limitation) => (
+            {result.prompt.limitations.map((limitation) => (
               <li
                 key={limitation}
                 className="flex gap-2.5 text-xs leading-5 text-muted-foreground"
@@ -156,36 +177,42 @@ export function ReconstructionResult({ result }: { result: ReconstructionResultT
         </section>
       )}
 
-      {/* Errors if any */}
-      {result.errors.length > 0 && (
+      {/* Detected stack */}
+      {result.detected_stack && (result.detected_stack.languages.length > 0 || result.detected_stack.frameworks.length > 0) && (
         <section
           className="reveal rounded-xl border border-border bg-card p-5 sm:p-6"
           style={{ animationDelay: '240ms' }}
         >
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-destructive">
-            <TriangleAlertIcon className="size-4" aria-hidden="true" />
-            Issues Encountered
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <FileCodeIcon className="size-4 text-primary" aria-hidden="true" />
+            Detected Stack
           </h3>
-          <ul className="mt-4 space-y-2">
-            {result.errors.map((error, index) => (
-              <li
-                key={index}
-                className="flex gap-2.5 text-xs leading-5 text-muted-foreground"
-              >
-                <span
-                  className="mt-1.5 size-1 shrink-0 rounded-full bg-destructive/60"
-                  aria-hidden="true"
-                />
-                <span>
-                  <span className="font-semibold text-foreground">{error.phase}:</span>{' '}
-                  {error.detail}
-                  {error.code && (
-                    <span className="ml-2 font-mono text-[0.625rem]">({error.code})</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            {result.detected_stack.languages.length > 0 && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Languages</dt>
+                <dd className="mt-1 text-sm">{result.detected_stack.languages.join(', ')}</dd>
+              </div>
+            )}
+            {result.detected_stack.frameworks.length > 0 && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Frameworks</dt>
+                <dd className="mt-1 text-sm">{result.detected_stack.frameworks.join(', ')}</dd>
+              </div>
+            )}
+            {result.detected_stack.databases.length > 0 && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Databases</dt>
+                <dd className="mt-1 text-sm">{result.detected_stack.databases.join(', ')}</dd>
+              </div>
+            )}
+            {result.detected_stack.tools.length > 0 && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Tools</dt>
+                <dd className="mt-1 text-sm">{result.detected_stack.tools.join(', ')}</dd>
+              </div>
+            )}
+          </dl>
         </section>
       )}
     </div>
@@ -196,7 +223,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-[0.6875rem] tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="mt-1.5 truncate font-mono text-lg font-semibold tracking-tight tabular-nums">
+      <dd className="mt-1.5 truncate font-mono text-lg font-semibold tracking-tight tabular-nums capitalize">
         {value}
       </dd>
     </div>
