@@ -10,6 +10,10 @@
 :root {
   --radius: 0.5rem;
 
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  scroll-padding-top: 4rem;
+
   --background: oklch(0.99 0.002 250);
   --foreground: oklch(0.21 0.02 255);
   --card: oklch(1 0 0);
@@ -280,26 +284,35 @@ html {
   animation: landing-reveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-timeline: view();
   animation-range: entry 6% cover 24%;
+  will-change: opacity;
+}
+
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /*
  * Result page.
  *
- * `.reveal` is a time-based entrance rather than a scroll-driven one: the result page is short,
- * and content that animates on scroll here would delay information the user came for.
+ * `.reveal` is a time-based entrance: simple fade-in with will-change hint to avoid
+ * layout shifts. No transform animations that could cause reflow during scroll.
  */
 .reveal {
   animation: reveal 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity;
 }
 
 @keyframes reveal {
   from {
     opacity: 0;
-    transform: translateY(0.75rem);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -367,17 +380,6 @@ html {
   width: 1px;
   height: 1px;
   overflow: hidden;
-}
-
-@keyframes landing-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(1rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
