@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Custom dark mode variant - VS Code compatible syntax */
 
 /*
  * Developer-tool palette: muted surfaces, one accent, dense type. Both themes are
@@ -72,7 +72,9 @@
   --status-attention: oklch(0.74 0.15 45);
 }
 
-@theme inline {
+/* Tailwind theme variables - mapped in :root for VS Code compatibility */
+:root,
+.dark {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -140,7 +142,8 @@
   }
 }
 
-@utility scrollbar-thin {
+/* Custom utility for thin scrollbars */
+.scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
