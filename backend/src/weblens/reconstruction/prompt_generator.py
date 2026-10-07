@@ -3,12 +3,16 @@
 Converts analyzed evidence (website or GitHub repo) into a single, high-quality
 GitReverse-style reconstruction prompt that tells an AI coding agent exactly how
 to rebuild the analyzed product.
+
+Can optionally use LLM synthesis to transform structured evidence into natural,
+conversational "vibe coding" prompts.
 """
 
 from __future__ import annotations
 
 import re
 
+from weblens.config import Settings
 from weblens.domain.evidence import RawEvidence
 from weblens.domain.reconstruction import (
     DetectedStack,
@@ -18,6 +22,7 @@ from weblens.domain.reconstruction import (
     SourceType,
 )
 from weblens.logging import get_logger
+from weblens.reconstruction.llm_synthesizer import LLMSynthesizer
 
 logger = get_logger(__name__)
 
@@ -25,11 +30,16 @@ logger = get_logger(__name__)
 class PromptGenerator:
     """Generates reconstruction prompts from analyzed sources."""
 
+    def __init__(self, settings: Settings | None = None):
+        """Initialize with optional settings for LLM synthesis."""
+        self._settings = settings
+        self._synthesizer = LLMSynthesizer(settings) if settings else None
+
     # ------------------------------------------------------------------
     # Website → prompt
     # ------------------------------------------------------------------
 
-    def generate_from_website(
+    async def generate_from_website(
         self,
         url: str,
         evidence: RawEvidence,
@@ -132,6 +142,16 @@ class PromptGenerator:
             "from public observation.",
             "A single page was analyzed; other pages may differ significantly.",
         ]
+
+        # Apply LLM synthesis if configured
+        if self._synthesizer:
+            try:
+                prompt_text = await self._synthesizer.synthesize(
+                    prompt_text,
+                    source_type="website"
+                )
+            except Exception as e:
+                logger.warning(f"LLM synthesis failed, using structured prompt: {e}")
 
         return ReconstructionPrompt(
             prompt=prompt_text,
@@ -362,7 +382,7 @@ class PromptGenerator:
     # GitHub repo → prompt
     # ------------------------------------------------------------------
 
-    def generate_from_github(
+    async def generate_from_github(
         self,
         url: str,
         repo_info: GitHubRepoInfo,
@@ -489,6 +509,16 @@ class PromptGenerator:
             "Private configuration, API keys, secrets, and deployment specifics are not included.",
             "Internal implementation details beyond publicly visible files are unknown.",
         ]
+
+        # Apply LLM synthesis if configured
+        if self._synthesizer:
+            try:
+                prompt_text = await self._synthesizer.synthesize(
+                    prompt_text,
+                    source_type="github_repo"
+                )
+            except Exception as e:
+                logger.warning(f"LLM synthesis failed for GitHub, using structured prompt: {e}")
 
         return ReconstructionPrompt(
             prompt=prompt_text,

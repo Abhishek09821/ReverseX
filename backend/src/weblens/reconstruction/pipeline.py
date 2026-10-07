@@ -41,7 +41,7 @@ class ReconstructionPipeline:
     ) -> None:
         self._settings = settings
         self._collector = collector
-        self._generator = PromptGenerator()
+        self._generator = PromptGenerator(settings)
         self._github_token = github_token
 
     async def run(self, job: Job, target: NormalizedTarget) -> ReconstructionResult:
@@ -112,7 +112,7 @@ class ReconstructionPipeline:
         await channel.stage_started(StageKey.ANALYZE)
         summarizer = WebsiteSummarizer()
         findings = summarizer.summarize(outcome.evidence)
-        prompt = self._generator.generate_from_website(
+        prompt = await self._generator.generate_from_website(
             target.requested_url, outcome.evidence, findings
         )
         await channel.stage_completed(StageKey.ANALYZE)
@@ -143,7 +143,7 @@ class ReconstructionPipeline:
         await channel.stage_completed(StageKey.HTTP_PROBE)
 
         await channel.stage_started(StageKey.ANALYZE)
-        prompt = self._generator.generate_from_github(
+        prompt = await self._generator.generate_from_github(
             original_url, repo_info, structure, stack, readme
         )
         await channel.stage_completed(StageKey.ANALYZE)

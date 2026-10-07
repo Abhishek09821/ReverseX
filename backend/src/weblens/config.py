@@ -145,6 +145,32 @@ class Settings(BaseSettings):
     """Only ``none`` is accepted in V1. The provider protocol exists; no implementation
     ships in the default install path."""
 
+    # --- LLM-based prompt synthesis (GitReverse-style) ---
+    llm_provider: str = Field(default="none", pattern="^(none|openai|anthropic|ollama)$")
+    """LLM provider for natural-language prompt synthesis. Options:
+    - none: Use structured template-based prompts (default, no external API calls)
+    - openai: OpenAI/Azure OpenAI/compatible endpoints
+    - anthropic: Claude API
+    - ollama: Local Ollama server"""
+
+    llm_api_key: str = Field(default="")
+    """API key for OpenAI or Anthropic. Not required for Ollama."""
+
+    llm_model: str = Field(default="gpt-4o-mini")
+    """Model to use. Examples:
+    - OpenAI: gpt-4o-mini, gpt-4o, gpt-4-turbo
+    - Anthropic: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022
+    - Ollama: llama3.1, qwen2.5, mistral"""
+
+    llm_base_url: str = Field(default="https://api.openai.com/v1")
+    """Base URL for LLM API. Defaults:
+    - OpenAI: https://api.openai.com/v1
+    - Anthropic: https://api.anthropic.com/v1
+    - Ollama: http://localhost:11434"""
+
+    llm_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    """HTTP timeout for LLM API calls."""
+
     # --- V2: Research and inference ---
     search_provider: str = Field(default="none")
     """Public research search provider name. ``none`` means research is skipped.
