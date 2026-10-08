@@ -44,6 +44,21 @@ class ReconstructionPipeline:
         self._generator = PromptGenerator(settings)
         self._github_token = github_token
 
+        # Use GitReverse engine if LLM is configured
+        self._use_gitreverse = settings.llm_provider != "none"
+        if self._use_gitreverse:
+            try:
+                from weblens.reconstruction.gitreverse_engine import GitReverseEngine
+                self._gitreverse_engine = GitReverseEngine(settings)
+                logger.info("GitReverse engine enabled (LLM provider configured)")
+            except Exception as e:
+                logger.warning(f"GitReverse engine initialization failed: {e}, using fallback")
+                self._use_gitreverse = False
+                self._gitreverse_engine = None
+        else:
+            self._gitreverse_engine = None
+            logger.info("Using structured prompts (LLM provider=none)")
+
     async def run(self, job: Job, target: NormalizedTarget) -> ReconstructionResult:
         """Execute the pipeline for the given job and target."""
         channel = job.channel
@@ -112,9 +127,19 @@ class ReconstructionPipeline:
         await channel.stage_started(StageKey.ANALYZE)
         summarizer = WebsiteSummarizer()
         findings = summarizer.summarize(outcome.evidence)
-        prompt = await self._generator.generate_from_website(
-            target.requested_url, outcome.evidence, findings
-        )
+
+        # Use GitReverse engine if available, otherwise fallback to structured
+        if self._use_gitreverse and self._gitreverse_engine:
+            logger.info(f"Using GitReverse engine for {target.requested_url}")
+            prompt = await self._gitreverse_engine.generate_prompt(
+                target.requested_url, outcome.evidence, findings
+            )
+        else:
+            logger.info(f"Using structured prompt generator for {target.requested_url}")
+            prompt = await self._generator.generate_from_website(
+                target.requested_url, outcome.evidence, findings
+            )
+
         await channel.stage_completed(StageKey.ANALYZE)
         return prompt
 

@@ -200,3 +200,104 @@ use to ask an AI coding agent to build this {source_label}."""
             response.raise_for_status()
             data = response.json()
             return data["message"]["content"].strip()
+
+    async def call_llm(
+        self,
+        system_prompt: str,
+        user_message: str,
+        max_tokens: int = 4096,
+    ) -> str:
+        """
+        Direct LLM call with custom system/user prompts.
+        Used by GitReverse engine for design.md and prompt generation.
+        """
+        if self.provider == "none":
+            raise ValueError("LLM provider is 'none', cannot make LLM calls")
+
+        try:
+            if self.provider == "openai":
+                return await self._call_openai_direct(system_prompt, user_message, max_tokens)
+            elif self.provider == "anthropic":
+                return await self._call_anthropic_direct(system_prompt, user_message, max_tokens)
+            elif self.provider == "ollama":
+                return await self._call_ollama_direct(system_prompt, user_message, max_tokens)
+            else:
+                raise ValueError(f"Unknown LLM provider: {self.provider}")
+        except Exception as e:
+            logger.error(f"Direct LLM call failed: {e}", exc_info=True)
+            raise
+
+    async def _call_openai_direct(
+        self, system_prompt: str, user_message: str, max_tokens: int
+    ) -> str:
+        """Direct OpenAI API call."""
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            "temperature": 0.7,
+            "max_tokens": max_tokens,
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+
+    async def _call_anthropic_direct(
+        self, system_prompt: str, user_message: str, max_tokens: int
+    ) -> str:
+        """Direct Anthropic API call."""
+        url = f"{self.base_url}/messages"
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": 0.7,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": user_message},
+            ],
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["content"][0]["text"].strip()
+
+    async def _call_ollama_direct(
+        self, system_prompt: str, user_message: str, max_tokens: int
+    ) -> str:
+        """Direct Ollama API call."""
+        url = f"{self.base_url}/api/chat"
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": max_tokens,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["message"]["content"].strip()
