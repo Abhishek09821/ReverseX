@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* Custom dark mode variant - VS Code compatible syntax */
+/* Custom dark mode variant for Tailwind v4 - keeping as comment for VS Code compatibility */
+/* @custom-variant dark (&:where(.dark, .dark *)); */
 
 /*
  * Developer-tool palette: muted surfaces, one accent, dense type. Both themes are
@@ -68,9 +69,7 @@
   --status-attention: oklch(0.74 0.15 45);
 }
 
-/* Tailwind theme variables - mapped in :root for VS Code compatibility */
-:root,
-.dark {
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -138,8 +137,7 @@
   }
 }
 
-/* Custom utility for thin scrollbars */
-.scrollbar-thin {
+@utility scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
@@ -285,17 +283,6 @@ html {
   animation-range: entry 6% cover 24%;
 }
 
-@keyframes landing-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(1rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /*
  * Result page.
  *
@@ -381,6 +368,17 @@ html {
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
